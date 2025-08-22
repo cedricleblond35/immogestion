@@ -1,0 +1,81 @@
+graph TB
+    %% Frontend
+    FRONTEND[Frontend Angular<br/>Interface utilisateur]
+    
+    %% API Gateway - Point d'entrée unique
+    subgraph "API GATEWAY"
+        GATEWAY[API Gateway<br/>🚪 Point d'entrée unique<br/>- Authentification<br/>- Rate limiting<br/>- Routage des requêtes<br/>- Agrégation des réponses]
+    end
+    
+    %% Microservices métier
+    subgraph "MICROSERVICES MÉTIER"
+        AUTH[Auth Service<br/>🔐 Authentification<br/>- Login/Logout<br/>- Gestion JWT<br/>- Rôles utilisateurs<br/>- Multi-tenant]
+        
+        PROPERTY[Property Service<br/>🏠 Gestion des Biens<br/>- CRUD propriétés<br/>- Photos/documents<br/>- Recherche<br/>- Disponibilité]
+        
+        TENANT[Tenant Service<br/>👥 Gestion des Locataires<br/>- Dossiers locataires<br/>- Historique<br/>- Communications<br/>- Documents]
+        
+        PAYMENT[Payment Service<br/>💰 Gestion des Paiements<br/>- Loyers<br/>- Charges<br/>- Retards<br/>- Comptabilité]
+        
+        CONTRACT[Contract Service<br/>📄 Gestion des Baux<br/>- Contrats<br/>- Renouvellements<br/>- Résiliations<br/>- Signatures]
+        
+        NOTIF[Notification Service<br/>📧 Notifications<br/>- Emails<br/>- SMS<br/>- Rappels<br/>- Alertes]
+    end
+    
+    %% Bases de données
+    subgraph "BASES DE DONNÉES"
+        AUTH_DB[(Auth DB<br/>Utilisateurs<br/>Sessions)]
+        PROP_DB[(Property DB<br/>Biens<br/>Photos)]
+        TENANT_DB[(Tenant DB<br/>Locataires<br/>Dossiers)]
+        PAYMENT_DB[(Payment DB<br/>Transactions<br/>Factures)]
+        CONTRACT_DB[(Contract DB<br/>Contrats<br/>Documents)]
+    end
+    
+    %% Services externes
+    subgraph "SERVICES EXTERNES"
+        STRIPE[Stripe<br/>Paiements]
+        SENDGRID[SendGrid<br/>Emails]
+        STORAGE[Stockage<br/>Fichiers]
+    end
+    
+    %% Connexions
+    FRONTEND --> GATEWAY
+    
+    GATEWAY --> AUTH
+    GATEWAY --> PROPERTY
+    GATEWAY --> TENANT
+    GATEWAY --> PAYMENT
+    GATEWAY --> CONTRACT
+    GATEWAY --> NOTIF
+    
+    AUTH --> AUTH_DB
+    PROPERTY --> PROP_DB
+    TENANT --> TENANT_DB
+    PAYMENT --> PAYMENT_DB
+    CONTRACT --> CONTRACT_DB
+    
+    PAYMENT --> STRIPE
+    NOTIF --> SENDGRID
+    PROPERTY --> STORAGE
+    CONTRACT --> STORAGE
+    
+    %% Événements entre services
+    PROPERTY -.-> NOTIF
+    TENANT -.-> NOTIF
+    PAYMENT -.-> NOTIF
+    CONTRACT -.-> PAYMENT
+    
+    %% Styling
+    classDef gateway fill:#ff9800,stroke:#e65100,stroke-width:3px,color:#fff
+    classDef auth fill:#2196f3,stroke:#0d47a1,stroke-width:2px,color:#fff
+    classDef business fill:#4caf50,stroke:#1b5e20,stroke-width:2px,color:#fff
+    classDef data fill:#9c27b0,stroke:#4a148c,stroke-width:2px,color:#fff
+    classDef external fill:#f44336,stroke:#b71c1c,stroke-width:2px,color:#fff
+    classDef frontend fill:#607d8b,stroke:#263238,stroke-width:2px,color:#fff
+    
+    class GATEWAY gateway
+    class AUTH auth
+    class PROPERTY,TENANT,PAYMENT,CONTRACT,NOTIF business
+    class AUTH_DB,PROP_DB,TENANT_DB,PAYMENT_DB,CONTRACT_DB data
+    class STRIPE,SENDGRID,STORAGE external
+    class FRONTEND frontend

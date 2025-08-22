@@ -1,0 +1,6 @@
+- Property Service (gestion des biens)
+- Tenant Service (gestion des locataires)  
+- Payment Service (gestion des paiements)
+- Contract Service (gestion des baux)
+- Notification Service
+- Authentication Service

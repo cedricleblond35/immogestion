@@ -1,0 +1,39 @@
+FROM golang:1.24-alpine
+
+# Installation des outils
+RUN apk add --no-cache git curl build-base
+
+# Installation d'Air (même si on ne l'utilise plus, au cas où)
+RUN go install github.com/air-verse/air@latest
+
+WORKDIR /app
+
+# Variables d'environnement pour Go
+ENV GO111MODULE=on
+ENV CGO_ENABLED=0
+
+# Copie du code
+COPY . .
+
+# Initialisation du module Go uniquement si go.mod n'existe pas
+RUN if [ ! -f go.mod ]; then go mod init immogestion-api; fi && \
+    go mod tidy && \
+    go mod download && \
+    go mod verify
+
+# Création des dossiers nécessaires
+RUN mkdir -p tmp internal
+
+# Utilisation du fichier .air.toml existant
+RUN ls -la .air.toml && echo "✅ Configuration Air trouvée"
+
+# Test que tout fonctionne AVANT de lancer
+RUN echo "=== Test compilation ===" && \
+    go build -o tmp/test-build ./cmd/api && \
+    rm tmp/test-build && \
+    echo "✅ Compilation OK"
+
+EXPOSE 8080
+
+# 🎯 MODIFICATION ICI - Solution permanente qui fonctionne
+CMD ["sh", "-c", "go mod tidy && go mod download && go run ./cmd/api"]

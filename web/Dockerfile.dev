@@ -1,0 +1,26 @@
+# Dockerfile pour l'environnement de développement
+FROM node:20-alpine
+
+# Installer les outils nécessaires
+RUN apk add --no-cache git
+
+# Définir le répertoire de travail
+WORKDIR /app
+
+# Copier les fichiers de dépendances
+COPY package*.json ./
+
+# Installer Angular CLI globalement
+RUN npm install -g @angular/cli
+
+# Installer toutes les dépendances (dev incluses)
+RUN npm ci
+
+# Copier le code source
+COPY . .
+
+# Exposer le port de développement
+EXPOSE 4200
+
+# Commande par défaut
+CMD ["npm", "run", "start", "--", "--host", "0.0.0.0", "--port", "4200"]

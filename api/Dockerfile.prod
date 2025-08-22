@@ -1,0 +1,47 @@
+FROM golang:1.24-alpine AS builder
+
+# Installation des outils de build
+RUN apk add --no-cache git ca-certificates tzdata
+
+WORKDIR /build
+
+# Optimisation du cache des dépendances
+COPY go.mod go.sum ./
+RUN go mod download && go mod verify
+
+# Copie du code source
+COPY . .
+
+# Build optimisé pour la production
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags='-w -s -extldflags "-static"' \
+    -a -installsuffix cgo \
+    -o api \
+    ./cmd/api
+
+# ==============================================
+# 🐳 IMAGE FINALE MINIMALE
+# ==============================================
+FROM scratch
+
+# Copie des certificats CA
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+# Copie de l'timezone
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+
+# Création de l'utilisateur non-root
+COPY --from=builder /etc/passwd /etc/passwd
+
+# Copie de l'exécutable
+COPY --from=builder /build/api /api
+
+# Création des dossiers nécessaires
+USER 1001:1001
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD ["/api", "healthcheck"]
+
+ENTRYPOINT ["/api"]

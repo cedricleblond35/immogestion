@@ -1,0 +1,43 @@
+# Dépendances
+node_modules
+npm-debug.log*
+
+# Distribution
+dist
+tmp
+out-tsc
+
+# IDEs et éditeurs
+.vscode
+.idea
+*.swp
+*.swo
+
+# Système
+.DS_Store
+Thumbs.db
+
+# Tests
+coverage
+.nyc_output
+
+# Logs
+logs
+*.log
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Environnement
+.env
+.env.local
+.env.*.local
+
+# Angular
+.angular

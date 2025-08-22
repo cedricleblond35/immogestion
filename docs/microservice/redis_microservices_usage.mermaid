@@ -1,0 +1,85 @@
+graph TB
+    %% Frontend
+    FRONTEND[Frontend Angular]
+    
+    %% API Gateway avec Redis
+    subgraph "API GATEWAY + REDIS"
+        GATEWAY[API Gateway]
+        REDIS_GW[Redis Gateway<br/>🔴 Rate Limiting<br/>🔴 Session Cache<br/>🔴 API Response Cache<br/>🔴 Circuit Breaker State]
+    end
+    
+    %% Microservices avec Redis intégré
+    subgraph "AUTH SERVICE + REDIS"
+        AUTH[Auth Service]
+        REDIS_AUTH[Redis Auth<br/>🔴 JWT Blacklist<br/>🔴 Session Storage<br/>🔴 Login Attempts<br/>🔴 Password Reset Tokens]
+    end
+    
+    subgraph "PROPERTY SERVICE + REDIS"
+        PROPERTY[Property Service]
+        REDIS_PROP[Redis Property<br/>🔴 Property Cache<br/>🔴 Search Results Cache<br/>🔴 Image Metadata Cache<br/>🔴 Statistics Cache]
+    end
+    
+    subgraph "TENANT SERVICE + REDIS"
+        TENANT[Tenant Service]
+        REDIS_TENANT[Redis Tenant<br/>🔴 Tenant Profiles Cache<br/>🔴 Document Status Cache<br/>🔴 Application Cache<br/>🔴 Communication History]
+    end
+    
+    subgraph "PAYMENT SERVICE + REDIS"
+        PAYMENT[Payment Service]
+        REDIS_PAY[Redis Payment<br/>🔴 Transaction Cache<br/>🔴 Payment Status<br/>🔴 Retry Queue<br/>🔴 Financial Reports Cache]
+    end
+    
+    subgraph "NOTIFICATION SERVICE + REDIS"
+        NOTIF[Notification Service]
+        REDIS_NOTIF[Redis Notification<br/>🔴 Message Queue<br/>🔴 Delivery Status<br/>🔴 Template Cache<br/>🔴 User Preferences]
+    end
+    
+    %% Event Bus Redis
+    subgraph "EVENT SYSTEM"
+        EVENT_BUS[Redis Pub/Sub<br/>🔴 Inter-Service Events<br/>🔴 Real-time Updates<br/>🔴 Saga Coordination<br/>🔴 Webhook Queue]
+    end
+    
+    %% Connexions
+    FRONTEND --> GATEWAY
+    GATEWAY <--> REDIS_GW
+    
+    GATEWAY --> AUTH
+    AUTH <--> REDIS_AUTH
+    
+    GATEWAY --> PROPERTY
+    PROPERTY <--> REDIS_PROP
+    
+    GATEWAY --> TENANT
+    TENANT <--> REDIS_TENANT
+    
+    GATEWAY --> PAYMENT
+    PAYMENT <--> REDIS_PAY
+    
+    GATEWAY --> NOTIF
+    NOTIF <--> REDIS_NOTIF
+    
+    %% Events entre services via Redis
+    AUTH -.-> EVENT_BUS
+    PROPERTY -.-> EVENT_BUS
+    TENANT -.-> EVENT_BUS
+    PAYMENT -.-> EVENT_BUS
+    NOTIF -.-> EVENT_BUS
+    
+    EVENT_BUS -.-> AUTH
+    EVENT_BUS -.-> PROPERTY
+    EVENT_BUS -.-> TENANT
+    EVENT_BUS -.-> PAYMENT
+    EVENT_BUS -.-> NOTIF
+    
+    %% Styling
+    classDef redis fill:#dc382d,stroke:#a42520,stroke-width:2px,color:#fff
+    classDef service fill:#4caf50,stroke:#1b5e20,stroke-width:2px,color:#fff
+    classDef gateway fill:#ff9800,stroke:#e65100,stroke-width:2px,color:#fff
+    classDef frontend fill:#607d8b,stroke:#263238,stroke-width:2px,color:#fff
+    classDef events fill:#9c27b0,stroke:#4a148c,stroke-width:2px,color:#fff
+    
+    class REDIS_GW,REDIS_AUTH,REDIS_PROP,REDIS_TENANT,REDIS_PAY,REDIS_NOTIF redis
+    class AUTH,PROPERTY,TENANT,PAYMENT,NOTIF service
+    class GATEWAY gateway
+    class FRONTEND frontend
+    class EVENT_BUS events

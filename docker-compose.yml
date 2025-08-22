@@ -1,0 +1,181 @@
+services:
+  angular-dev:
+    build:
+      context: ./web
+      dockerfile: Dockerfile.dev
+    container_name: angular20-dev
+    ports:
+      - '4201:4200'
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    command: ng serve --host 0.0.0.0 --poll=2000
+    networks:
+      - immogestion-network
+
+  angular-test:
+    build:
+      context: ./web
+      dockerfile: Dockerfile.dev
+    container_name: angular20-test
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=test
+    command: npm run test -- --watch=false --browsers=ChromeHeadless
+    networks:
+      - immogestion-network
+    profiles:
+      - testing
+
+  api-dev:
+    build:
+      context: ./api
+      dockerfile: Dockerfile.dev
+    container_name: api_dev
+    restart: unless-stopped
+    environment:
+      - ENV=development
+      - PORT=8080
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-immobilier_db}
+      - DB_USER=${DB_USER:-immobilier_user}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGINS=http://localhost:4201
+    volumes:
+      - go_mod_cache:/go/pkg/mod
+    ports:
+      - "8080:8080"
+    networks:
+      - immogestion-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: immogestion_postgres_dev
+    environment:
+      - POSTGRES_DB=immobilier_prod
+      - POSTGRES_USER=immobilier_user
+      - POSTGRES_PASSWORD=abc123
+    expose:
+      - "5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - immogestion-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-immobilier_user} -d ${DB_NAME:-immobilier_db}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    container_name: immogestion_redis_dev
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - immogestion-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # prometheus:
+  #   image: prom/prometheus:v2.52.0
+  #   container_name: immogestion_prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+  #   command:
+  #     - '--config.file=/etc/prometheus/prometheus.yml'
+  #     - '--web.enable-lifecycle'
+  #   networks:
+  #     - immogestion-network
+  #   depends_on:
+  #     - node-exporter
+  #     - cadvisor
+
+  # grafana:
+  #   image: grafana/grafana:11.1.3
+  #   container_name: immogestion_grafana
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - grafana_data:/var/lib/grafana
+  #   environment:
+  #     - GF_SECURITY_ADMIN_USER=admin
+  #     - GF_SECURITY_ADMIN_PASSWORD=admin
+  #   networks:
+  #     - immogestion-network
+  #   depends_on:
+  #     - prometheus
+
+  # node-exporter:
+  #   image: prom/node-exporter:v1.8.2
+  #   container_name: immogestion_node-exporter
+  #   ports:
+  #     - "9100:9100"
+  #   volumes:
+  #     - /proc:/host/proc:ro
+  #     - /sys:/host/sys:ro
+  #     - /:/rootfs:ro
+  #   command:
+  #     - '--path.procfs=/host/proc'
+  #     - '--path.sysfs=/host/sys'
+  #     - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)'
+  #   networks:
+  #     - immogestion-network
+
+  # cadvisor:
+  #   image: gcr.io/cadvisor/cadvisor:v0.52.1
+  #   container_name: immogestion_cadvisor
+  #   ports:
+  #     - "8081:8080"
+  #   volumes:
+  #     - /:/rootfs:ro
+  #     - /var/run:/var/run:ro
+  #     - /sys:/sys:ro
+  #     - /var/lib/docker:/var/lib/docker:ro
+  #   networks:
+  #     - immogestion-network
+  #   depends_on:
+  #     - postgres
+  #     - redis
+
+networks:
+  immogestion-network:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: br_immogestion
+
+volumes:
+  node_modules:
+  go_mod_cache:
+  postgres_data:
+  redis_data:
+  grafana_data:
