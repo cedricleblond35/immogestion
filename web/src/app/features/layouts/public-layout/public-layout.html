@@ -1,0 +1,109 @@
+<!-- home.component.html -->
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Immogestion - Logiciel de gestion immobilière pour les professionnels</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="#" class="logo">
+                    <div class="logo-icon">🏠</div>
+                    Immogestion
+                </a>
+                <nav>
+                    <ul class="nav-menu">
+                        <li><a href="#accueil" class="nav-link active">Accueil</a></li>
+                        <li><a href="#fonctionnalites" class="nav-link">Fonctionnalités</a></li>
+                        <li><a href="#tarifs" class="nav-link">Tarifs</a></li>
+                        <li><a href="#ressources" class="nav-link">Ressources</a></li>
+                        <li><a href="#contact" class="nav-link">Contact</a></li>
+                        <li><a href="/auth/login" class="nav-link">Connexion</a></li>
+                        <li><a href="/auth/register" class="nav-link">Essai gratuit</a></li>
+                    </ul>
+                </nav>              
+            </div>
+        </div>
+    </header>
+<main>
+  <router-outlet></router-outlet> <!-- Ici s'affiche Home, Login, Register… -->
+</main>
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <div class="footer-logo">
+                        <div class="footer-logo-icon">🏠</div>
+                        Immogestion
+                    </div>
+                    <p class="footer-description">
+                        La solution complète de gestion immobilière pour les professionnels exigeants.
+                    </p>
+                </div>
+
+                <div class="footer-section">
+                    <h3>Produit</h3>
+                    <ul>
+                        <li><a href="#fonctionnalites">Fonctionnalités</a></li>
+                        <li><a href="#tarifs">Tarifs</a></li>
+                        <li><a href="#integrations">Intégrations</a></li>
+                        <li><a href="#api">API</a></li>
+                        <li><a href="#securite">Sécurité</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-section">
+                    <h3>Ressources</h3>
+                    <ul>
+                        <li><a href="#documentation">Documentation</a></li>
+                        <li><a href="#guides">Guides pratiques</a></li>
+                        <li><a href="#blog">Blog</a></li>
+                        <li><a href="#webinaires">Webinaires</a></li>
+                        <li><a href="#formation">Formation</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-section">
+                    <h3>Support</h3>
+                    <ul>
+                        <li><a href="#aide">Centre d'aide</a></li>
+                        <li><a href="#contact">Nous contacter</a></li>
+                        <li><a href="#status">Statut des services</a></li>
+                        <li><a href="#communaute">Communauté</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-section">
+                    <h3>Entreprise</h3>
+                    <ul>
+                        <li><a href="#apropos">À propos</a></li>
+                        <li><a href="#carrieres">Carrières</a></li>
+                        <li><a href="#presse">Presse</a></li>
+                        <li><a href="#partenaires">Partenaires</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="footer-bottom">
+                <div class="footer-copyright">
+                    <div class="footer-bottom-logo">🏠</div>
+                    © 2024 Immogestion. Tous droits réservés.
+                </div>
+                <div class="footer-links">
+                    <a href="#mentions">Mentions légales</a>
+                    <a href="#confidentialite">Confidentialité</a>
+                    <a href="#cookies">Cookies</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="scripts.js"></script>
+</body>
+</html>
