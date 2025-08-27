@@ -1078,3 +1078,32 @@ body {
     -moz-osx-font-smoothing: grayscale;
   }
 }
+
+// Ajouté dans styles.scss
+.main-content {
+  padding-top: 80px; // Ajustez cette valeur selon la hauteur réelle de votre header (par ex. 80px pour un padding suffisant)
+}
+// Styles existants pour .header et .footer avec ajout de couleurs
+.header {
+  background: var(--dark-blue); // Utilise la couleur sombre définie (#1a202c)
+  border-bottom: 1px solid var(--border-light); // Garde la bordure légère
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  backdrop-filter: blur(10px); // Effet de flou conservé
+}
+
+.footer {
+  background: #2d3748; // Une teinte légèrement plus claire que --dark-blue pour contraste
+  color: rgba(255, 255, 255, 0.8); // Texte clair pour lisibilité
+}
+
+// Ajustement du texte et des liens dans le footer pour la lisibilité
+.footer a {
+  color: rgba(255, 255, 255, 0.8); // Liens en clair
+  &:hover {
+    color: white; // Effet hover en blanc
+  }
+}
