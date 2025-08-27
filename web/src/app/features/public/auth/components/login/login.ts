@@ -1,11 +1,12 @@
-import { Component, viewChild, OnInit, OnDestroy, inject } from '@angular/core';
-import { NgForm, FormsModule } from '@angular/forms';
+import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
+import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
+import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { HttpClient, HttpHeaders, HttpErrorResponse } from '@angular/common/http';
-import { catchError, finalize, takeUntil, timeout, retry } from 'rxjs/operators';
+import { catchError, finalize, takeUntil, timeout, retry, tap } from 'rxjs/operators';
 import { throwError, Subject, Observable, timer } from 'rxjs';
 
-// Interfaces
+// Interfaces modernes
 export interface LoginCredentials {
   email: string;
   password: string;
@@ -27,265 +28,367 @@ export interface AuthResponse {
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [FormsModule],
+  imports: [ReactiveFormsModule, CommonModule], // ← Reactive Forms, pas Template-driven
   templateUrl: './login.html',
   styleUrl: './login.scss',
 })
 export class Login implements OnInit, OnDestroy {
   
-  // Injection des dépendances
-  private http = inject(HttpClient);  // Utilisation de HttpClient pour les requêtes HTTP
-  private router = inject(Router);  // Utilisation de Router pour la navigation
+  // ===== INJECTION DES DÉPENDANCES (MODERNE) =====
+  private readonly fb = inject(FormBuilder);
+  private readonly http = inject(HttpClient);
+  private readonly router = inject(Router);
   
-  // ViewChild pour le formulaire
-  loginForm = viewChild<NgForm>('loginForm');
+  // ===== SIGNALS (ANGULAR 17+) =====
+  // État de l'interface utilisateur avec signals
+  readonly isLoading = signal(false);
+  readonly showPassword = signal(false);
+  readonly errorMessage = signal('');
+  readonly isBlocked = signal(false);
+  readonly blockTimeRemaining = signal(0);
+  readonly loginAttempts = signal(0);
   
-  // Modèle du formulaire
-  loginModel = {
-    email: '',
-    password: '',
-    rememberMe: false
-  };
-
-  // État du composant
-  isLoading = false;
-  showPassword = false;
-  loginAttempts = 0;
-  maxLoginAttempts = 5;
-  isBlocked = false;
-  blockTimeRemaining = 0;
+  // Constantes
+  readonly maxLoginAttempts = 5;
   
-  // Variables pour la gestion des erreurs
-  errorMessage = '';
-  showError = false;
+  // Computed signals (calculés automatiquement)
+  readonly showError = computed(() => this.errorMessage() !== '');
+  readonly formattedTimeRemaining = computed(() => {
+    const remaining = this.blockTimeRemaining();
+    const minutes = Math.floor(remaining / 60);
+    const seconds = remaining % 60;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  });
+  readonly remainingAttempts = computed(() => this.maxLoginAttempts - this.loginAttempts());
   
-  // Configuration
+  // ===== REACTIVE FORM (MODERNE) =====
+  readonly loginForm: FormGroup = this.fb.group({
+    email: [
+      { value: '', disabled: false }, // ← État initial du disabled
+      [
+        Validators.required,
+        Validators.email,
+        Validators.maxLength(255)
+      ]
+    ],
+    password: [
+      { value: '', disabled: false }, // ← État initial du disabled
+      [
+        Validators.required,
+        Validators.minLength(8),
+        Validators.maxLength(128)
+      ]
+    ],
+    rememberMe: [{ value: false, disabled: false }] // ← État initial du disabled
+  });
+  
+  // ===== CONFIGURATION =====
   private readonly API_URL = 'http://localhost:8080/api';
   private readonly TOKEN_KEY = 'immogestion_access_token';
   private readonly REFRESH_TOKEN_KEY = 'immogestion_refresh_token';
   private readonly USER_KEY = 'immogestion_user';
   
-  // Observables
+  // ===== VARIABLES PRIVÉES =====
   private destroy$ = new Subject<void>();
   private blockTimer?: any;
 
   ngOnInit(): void {
+    console.log('Initialisation du composant Login moderne');
+    
     // Vérifier si l'utilisateur est déjà connecté
     if (this.isAuthenticated()) {
+      console.log('Utilisateur déjà connecté, redirection...');
       this.router.navigate(['/dashboard']);
       return;
     }
 
-    // Récupérer les tentatives de connexion stockées
+    // Vérifier les tentatives de connexion précédentes
     this.checkLoginAttempts();
     
     // Pré-remplir l'email si "Se souvenir de moi" était coché
     const rememberedEmail = localStorage.getItem('remember_user');
     if (rememberedEmail) {
-      this.loginModel.email = rememberedEmail;
-      this.loginModel.rememberMe = true;
+      console.log('💾 Email mémorisé trouvé:', rememberedEmail);
+      this.loginForm.patchValue({ 
+        email: rememberedEmail,
+        rememberMe: true 
+      });
     }
+
+    // Écouter les changements de formulaire pour validation en temps réel
+    this.setupFormValidation();
   }
 
   ngOnDestroy(): void {
+    console.log('Nettoyage du composant');
     this.destroy$.next();
     this.destroy$.complete();
     
     if (this.blockTimer) {
       clearInterval(this.blockTimer);
     }
-    
-    // Nettoyer les données sensibles
-    this.loginModel.password = '';
   }
 
-  /**
-   * Auto-sauvegarde
-   */
-  autoSave() {
-    const form = this.loginForm();
-    
-    if (form && form.dirty && !this.isBlocked) {
-      // Sauvegarder uniquement l'email (pas le mot de passe pour la sécurité)
-      if (this.loginModel.email) {
-        sessionStorage.setItem('draft_email', this.loginModel.email);
+  // ===== CONFIGURATION DE LA VALIDATION EN TEMPS REEL =====
+  private setupFormValidation(): void {
+    // Effacer les erreurs quand l'utilisateur tape
+    this.loginForm.valueChanges.pipe(
+      takeUntil(this.destroy$)
+    ).subscribe(() => {
+      if (this.showError()) {
+        this.clearError();
       }
-      console.log('Auto-saving email:', this.loginModel.email);
-    }
+    });
+
+    // La gestion de l'état disabled sera faite directement dans les méthodes
+    // qui changent les signals (setLoadingState, blockUser, etc.)
+    // Pas besoin d'observer les signals pour cela
   }
 
-  /**
-   * Soumission du formulaire
-   */
-  async onSubmit(): Promise<void> {
-    const form = this.loginForm();
+  // ===== MÉTHODES POUR GÉRER L'ÉTAT DISABLED DU FORMULAIRE =====
+  private updateFormDisabledState(disabled: boolean): void {
+    const controls = ['email', 'password', 'rememberMe'];
     
-    // Vérifier si l'utilisateur est bloqué
-    if (this.isBlocked) {
-      this.showErrorMessage(
-        `Connexion bloquée. Réessayez dans ${Math.ceil(this.blockTimeRemaining / 60)} minutes.`
-      );
+    controls.forEach(controlName => {
+      const control = this.loginForm.get(controlName);
+      if (control) {
+        if (disabled && control.enabled) {
+          control.disable();
+        } else if (!disabled && control.disabled) {
+          control.enable();
+        }
+      }
+    });
+  }
+
+  // Méthodes publiques pour contrôler l'état du formulaire
+  private enableForm(): void {
+    console.log('Activation du formulaire');
+    this.updateFormDisabledState(false);
+  }
+
+  private disableForm(): void {
+    console.log('Désactivation du formulaire');
+    this.updateFormDisabledState(true);
+  }
+
+  // ===== SOUMISSION DU FORMULAIRE (MODERNE) =====
+  async onSubmit(): Promise<void> {
+    console.log('=== DÉBUT DE onSubmit() (VERSION MODERNE) ===');
+    
+    // Marquer tous les champs comme touchés pour afficher les erreurs
+    this.loginForm.markAllAsTouched();
+    
+    console.log('État du formulaire:', {
+      valid: this.loginForm.valid,
+      value: this.loginForm.value,
+      errors: this.loginForm.errors
+    });
+
+    // Vérifications préalables
+    if (this.isBlocked()) {
+      const errorMsg = `Connexion bloquée. Réessayez dans ${Math.ceil(this.blockTimeRemaining() / 60)} minutes.`;
+      console.log('Utilisateur bloqué:', errorMsg);
+      this.setError(errorMsg);
       return;
     }
 
-    // Vérifier la validité du formulaire
-    if (!form?.valid) {
-      this.showErrorMessage('Veuillez corriger les erreurs dans le formulaire');
+    if (this.loginForm.invalid) {
+      console.log('Formulaire invalide');
+      this.setError('Veuillez corriger les erreurs dans le formulaire');
       return;
     }
 
-    // Validation des données
-    if (!this.validateFormData()) {
-      return;
-    }
+    console.log('Formulaire valide, préparation de l\'envoi...');
 
-    // Préparer les credentials
+    // Extraction des données du formulaire (type-safe)
+    const formValue = this.loginForm.getRawValue();
     const credentials: LoginCredentials = {
-      email: this.sanitizeInput(this.loginModel.email.toLowerCase().trim()),
-      password: this.loginModel.password
+      email: formValue.email.toLowerCase().trim(),
+      password: formValue.password
     };
 
-    console.log('Tentative de connexion pour:', credentials.email);
+    console.log('Credentials préparés:', { 
+      email: credentials.email, 
+      password: '[MASQUÉ]' 
+    });
 
-    // Démarrer le chargement
-    this.isLoading = true;
-    this.hideError();
+    // Validation supplémentaire côté client
+    if (!this.validateCredentials(credentials)) {
+      console.log('Validation des credentials échouée');
+      return;
+    }
+
+    // Démarrage de l'appel API
+    this.setLoadingState(true);
 
     try {
-      // Appel à l'API
+      console.log('Appel à l\'API de connexion...');
+      
       const response = await this.callLoginAPI(credentials);
       
-      // Traiter le succès
-      this.handleLoginSuccess(response);
+      console.log('Connexion réussie:', response);
+      
+      await this.handleLoginSuccess(response, formValue.rememberMe);
       
     } catch (error) {
-      // Traiter l'erreur
+      console.log('Erreur de connexion:', error);
       this.handleLoginError(error);
       
     } finally {
-      this.isLoading = false;
-      // Nettoyer le mot de passe
-      this.loginModel.password = '';
+      this.setLoadingState(false);
+      console.log('Fin de l\'appel API');
+    }
+    
+    console.log('=== FIN DE onSubmit() ===');
+  }
+
+  // ===== GESTION DE L'ÉTAT DE CHARGEMENT =====
+  private setLoadingState(loading: boolean): void {
+    this.isLoading.set(loading);
+    this.clearError();
+    
+    // Gérer l'état disabled du formulaire
+    if (loading) {
+      this.disableForm();
+    } else {
+      // Ne réactiver que si pas bloqué
+      if (!this.isBlocked()) {
+        this.enableForm();
+      }
     }
   }
 
-  /**
-   * Validation des données du formulaire
-   */
-  private validateFormData(): boolean {
-    // Validation de l'email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(this.loginModel.email)) {
-      this.showErrorMessage('Format d\'email invalide');
-      return false;
-    }
-
-    // Validation du mot de passe
-    if (this.loginModel.password.length < 8) {
-      this.showErrorMessage('Le mot de passe doit contenir au moins 8 caractères');
-      return false;
-    }
-
-    // Vérification de caractères dangereux (XSS prevention)
-    const dangerousChars = /<script|javascript:|on\w+\s*=/i;
-    if (dangerousChars.test(this.loginModel.email) || dangerousChars.test(this.loginModel.password)) {
-      this.showErrorMessage('Caractères non autorisés détectés');
-      return false;
-    }
-
-    return true;
-  }
-
-  /**
-   * Appel sécurisé à l'API de connexion
-   */
-  private callLoginAPI(credentials: LoginCredentials): Promise<AuthResponse> {
+  // ===== APPEL API MODERNE =====
+  private async callLoginAPI(credentials: LoginCredentials): Promise<AuthResponse> {
+    console.log('Appel API de connexion...');
+    
     const headers = new HttpHeaders({
       'Content-Type': 'application/json',
       'X-Requested-With': 'XMLHttpRequest',
-      'X-Request-ID': this.generateRequestId()  // unique ID
+      'X-Request-ID': this.generateRequestId()
     });
 
-    return this.http.post<AuthResponse>(`${this.API_URL}/auth/login`, credentials, { 
+    const url = `${this.API_URL}/auth/login`;
+    
+    return this.http.post<AuthResponse>(url, credentials, { 
       headers,
-      withCredentials: true // Pour les cookies CSRF si nécessaire
+      withCredentials: true
     }).pipe(
-      timeout(10000), // Timeout de 10 secondes
-      retry({
-        count: 2,
-        delay: (error, retryCount) => {
-          // Retry seulement sur les erreurs réseau (pas les erreurs 4xx)
-          if (error.status >= 400 && error.status < 500) {
-            return throwError(() => error);
-          }
-          return timer(retryCount * 1000);
-        }
-      }),
-      takeUntil(this.destroy$), //  Annuler si le composant est détruit
+      tap(response => console.log('Réponse API reçue:', response)),
+      timeout(10000),
+      retry({ count: 2, delay: this.retryStrategy }),
+      takeUntil(this.destroy$),
       catchError(this.handleHttpError.bind(this))
     ).toPromise() as Promise<AuthResponse>;
   }
 
-  /**
-   * Gestion du succès de connexion
-   */
-  private handleLoginSuccess(response: AuthResponse): void {
-    console.log('Connexion réussie');
+  // ===== STRATÉGIE DE RETRY MODERNE =====
+  private retryStrategy = (error: any, retryCount: number) => {
+    console.log(`Tentative ${retryCount} après erreur:`, error.status);
+    
+    // Pas de retry pour les erreurs client (4xx)
+    if (error.status >= 400 && error.status < 500) {
+      console.log('Pas de retry pour erreur client');
+      return throwError(() => error);
+    }
+    
+    const delay = retryCount * 1000;
+    console.log(`Retry dans ${delay}ms...`);
+    return timer(delay);
+  };
+
+  // ===== GESTION DU SUCCÈS (MODERNE) =====
+  private async handleLoginSuccess(response: AuthResponse, rememberMe: boolean): Promise<void> {
+    console.log('Traitement du succès de connexion...');
 
     // Validation de la réponse
     if (!this.validateAuthResponse(response)) {
-      this.showErrorMessage('Réponse du serveur invalide');
+      this.setError('Réponse du serveur invalide');
       return;
     }
 
     // Reset des tentatives
     this.resetLoginAttempts();
 
-    // Stockage sécurisé des tokens
-    this.setTokens(response.access_token, response.refresh_token);
-    
-    // Stockage des informations utilisateur
-    this.setCurrentUser(response.user);
+    // Stockage des données d'authentification
+    this.storeAuthData(response, rememberMe);
 
-    // Gestion du "Se souvenir de moi"
-    if (this.loginModel.rememberMe) {
+    // Actions post-connexion
+    await this.performPostLoginActions(response);
+
+    // Redirection
+    const redirectUrl = this.determineRedirectUrl(response.user) || '/dashboard';
+    console.log('Redirection vers:', redirectUrl);
+    
+    // Reset du formulaire
+    this.loginForm.reset();
+    
+    // Navigation
+    await this.router.navigate([redirectUrl]);
+  }
+
+  // ===== STOCKAGE DES DONNÉES D'AUTHENTIFICATION =====
+  private storeAuthData(response: AuthResponse, rememberMe: boolean): void {
+    console.log('Stockage des données d\'authentification...');
+    
+    // Tokens
+    localStorage.setItem(this.TOKEN_KEY, response.access_token);
+    localStorage.setItem(this.REFRESH_TOKEN_KEY, response.refresh_token);
+    
+    // Informations utilisateur
+    localStorage.setItem(this.USER_KEY, JSON.stringify(response.user));
+    
+    // Se souvenir de moi
+    if (rememberMe) {
       localStorage.setItem('remember_user', response.user.email);
     } else {
       localStorage.removeItem('remember_user');
     }
-
-    // Nettoyer les données de session
-    sessionStorage.removeItem('draft_email');
-
-    console.log(`Bienvenue, ${response.user.email}!`);
-
-    // Redirection sécurisée
-    const redirectUrl = this.getRedirectUrl() || '/dashboard';
-    this.router.navigate([redirectUrl]);
-
-    // Reset du formulaire
-    this.resetForm();
+    
+    console.log('Données stockées avec succès');
   }
 
-  /**
-   * Gestion des erreurs de connexion
-   */
-  private handleLoginError(error: any): void {
-    console.error('Erreur de connexion:', error);
+  // ===== ACTIONS POST-CONNEXION =====
+  private async performPostLoginActions(response: AuthResponse): Promise<void> {
+    console.log('Exécution des actions post-connexion...');
+    
+    // Métadonnées de session
+    sessionStorage.setItem('login_time', new Date().toISOString());
+    sessionStorage.setItem('user_role', response.user.role);
+    sessionStorage.setItem('token_expires_at', 
+      new Date(Date.now() + (response.expires_in * 1000)).toISOString()
+    );
+    
+    // Initialisation basée sur le rôle
+    switch (response.user.role) {
+      case 'admin':
+        await this.initializeAdminFeatures();
+        break;
+      case 'manager':
+        await this.initializeManagerFeatures();
+        break;
+      default:
+        await this.initializeUserFeatures();
+    }
+  }
 
-    // Incrémenter les tentatives
-    this.loginAttempts++;
-    localStorage.setItem('login_attempts', this.loginAttempts.toString());
+  // ===== GESTION D'ERREUR MODERNE =====
+  private handleLoginError(error: any): void {
+    console.log('Gestion de l\'erreur de connexion:', error);
+
+    // Incrémenter les tentatives avec signal
+    this.loginAttempts.update(attempts => attempts + 1);
+    localStorage.setItem('login_attempts', this.loginAttempts().toString());
     localStorage.setItem('last_attempt_time', Date.now().toString());
 
-    let errorMessage = 'Erreur de connexion';
+    let errorMessage = 'Erreur de connexion inconnue';
 
-    // Gestion spécifique des erreurs
     if (error?.status === 401) {
       errorMessage = 'Email ou mot de passe incorrect';
     } else if (error?.status === 429) {
       errorMessage = 'Trop de tentatives. Veuillez patienter.';
-      this.blockUser(15 * 60 * 1000); // 15 minutes
+      this.blockUser(15 * 60 * 1000);
       return;
     } else if (error?.status === 422) {
       errorMessage = 'Données invalides';
@@ -295,201 +398,200 @@ export class Login implements OnInit, OnDestroy {
       errorMessage = 'Pas de connexion internet';
     }
 
-    this.showErrorMessage(errorMessage);
+    this.setError(errorMessage);
 
-    // Vérifier si on doit bloquer l'utilisateur
-    if (this.loginAttempts >= this.maxLoginAttempts) {
-      this.blockUser(15 * 60 * 1000); // 15 minutes
+    // Vérifier si blocage nécessaire
+    if (this.loginAttempts() >= this.maxLoginAttempts) {
+      this.blockUser(15 * 60 * 1000);
     } else {
-      const remainingAttempts = this.maxLoginAttempts - this.loginAttempts;
-      if (remainingAttempts <= 2) {
-        console.warn(
-          `${remainingAttempts} tentative(s) restante(s) avant blocage temporaire`
-        );
+      const remaining = this.maxLoginAttempts - this.loginAttempts();
+      if (remaining <= 2) {
+        console.warn(`${remaining} tentative(s) restante(s)`);
       }
     }
+
+    // Effacer le mot de passe
+    this.loginForm.patchValue({ password: '' });
   }
 
-  /**
-   * Vérification des tentatives de connexion précédentes
-   */
-  private checkLoginAttempts(): void {
-    const attempts = localStorage.getItem('login_attempts');
-    const lastAttempt = localStorage.getItem('last_attempt_time');
-    
-    if (attempts && lastAttempt) {
-      this.loginAttempts = parseInt(attempts, 10);
-      const lastAttemptTime = parseInt(lastAttempt, 10);
-      const now = Date.now();
-      const timeDiff = now - lastAttemptTime;
-      
-      // Si plus de 15 minutes se sont écoulées, reset les tentatives
-      if (timeDiff > 15 * 60 * 1000) {
-        this.resetLoginAttempts();
-      } else if (this.loginAttempts >= this.maxLoginAttempts) {
-        this.blockUser(15 * 60 * 1000 - timeDiff);
-      }
+  // ===== MÉTHODES UTILITAIRES MODERNES =====
+
+  // Gestion des erreurs avec signals
+  private setError(message: string): void {
+    this.errorMessage.set(message);
+  }
+
+  private clearError(): void {
+    this.errorMessage.set('');
+  }
+
+  // Toggle de visibilité du mot de passe
+  togglePasswordVisibility(): void {
+    this.showPassword.update(show => !show);
+  }
+
+  // Validation des credentials
+  private validateCredentials(credentials: LoginCredentials): boolean {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(credentials.email)) {
+      this.setError('Format d\'email invalide');
+      return false;
     }
-  }
 
-  /**
-   * Blocage temporaire de l'utilisateur
-   */
-  private blockUser(remainingTime: number): void {
-    this.isBlocked = true;
-    this.blockTimeRemaining = Math.ceil(remainingTime / 1000);
-    
-    this.blockTimer = setInterval(() => {
-      this.blockTimeRemaining--;
-      if (this.blockTimeRemaining <= 0) {
-        this.unblockUser();
-      }
-    }, 1000);
-    
-    this.showErrorMessage(
-      `Trop de tentatives échouées. Réessayez dans ${Math.ceil(this.blockTimeRemaining / 60)} minutes.`
-    );
-  }
-
-  /**
-   * Déblocage de l'utilisateur
-   */
-  private unblockUser(): void {
-    this.isBlocked = false;
-    this.blockTimeRemaining = 0;
-    this.resetLoginAttempts();
-    
-    if (this.blockTimer) {
-      clearInterval(this.blockTimer);
+    if (credentials.password.length < 8) {
+      this.setError('Le mot de passe doit contenir au moins 8 caractères');
+      return false;
     }
-    
-    console.log('Vous pouvez maintenant réessayer de vous connecter.');
-    this.hideError();
-  }
 
-  /**
-   * Reset des tentatives de connexion
-   */
-  private resetLoginAttempts(): void {
-    this.loginAttempts = 0;
-    localStorage.removeItem('login_attempts');
-    localStorage.removeItem('last_attempt_time');
-  }
-
-  /**
-   * Utilities pour l'authentification
-   */
-  private isAuthenticated(): boolean {
-    const token = localStorage.getItem(this.TOKEN_KEY);
-    return token !== null && !this.isTokenExpired(token);
-  }
-
-  private isTokenExpired(token: string): boolean {
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      const currentTime = Math.floor(Date.now() / 1000);
-      return payload.exp < (currentTime + 300); // 5 min de marge
-    } catch (error) {
-      return true;
+    // Protection XSS
+    const dangerousChars = /<script|javascript:|on\w+\s*=/i;
+    if (dangerousChars.test(credentials.email) || dangerousChars.test(credentials.password)) {
+      this.setError('Caractères non autorisés détectés');
+      return false;
     }
+
+    return true;
   }
 
-  // Stockage sécurisé des tokens et utilisateur
-  private setTokens(accessToken: string, refreshToken: string): void {
-    localStorage.setItem(this.TOKEN_KEY, accessToken);
-    localStorage.setItem(this.REFRESH_TOKEN_KEY, refreshToken);
-  }
-
-  // Stockage des informations utilisateur
-  private setCurrentUser(user: any): void {
-    localStorage.setItem(this.USER_KEY, JSON.stringify(user));
-  }
-
-  // Récupération de l'URL de redirection
-  private getRedirectUrl(): string | null {
-    return sessionStorage.getItem('redirect_url');
-  }
-
-  /**
-   * Validation et sanitisation
-   */
+  // Validation de la réponse d'authentification
   private validateAuthResponse(response: AuthResponse): boolean {
     return !!(
       response &&
       response.access_token &&
       response.refresh_token &&
       response.expires_in &&
-      response.user &&
-      response.user.id &&
-      response.user.email
+      response.user?.id &&
+      response.user?.email
     );
   }
 
-  private sanitizeInput(input: string): string {
-    return input
-      .replace(/[<>]/g, '') // Suppression des balises HTML de base
-      .substring(0, 255); // Limitation de la longueur
+  // Vérification d'authentification
+  private isAuthenticated(): boolean {
+    const token = localStorage.getItem(this.TOKEN_KEY);
+    return token !== null && !this.isTokenExpired(token);
   }
 
+  // Vérification d'expiration du token
+  private isTokenExpired(token: string): boolean {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const currentTime = Math.floor(Date.now() / 1000);
+      return payload.exp < (currentTime + 300);
+    } catch (error) {
+      return true;
+    }
+  }
+
+  // Génération d'ID de requête
   private generateRequestId(): string {
     return Date.now().toString(36) + Math.random().toString(36).substr(2);
+  }
+
+  // Gestion du blocage temporaire
+  private blockUser(duration: number): void {
+    this.isBlocked.set(true);
+    this.blockTimeRemaining.set(Math.ceil(duration / 1000));
+    
+    // Désactiver le formulaire
+    this.disableForm();
+    
+    this.blockTimer = setInterval(() => {
+      const remaining = this.blockTimeRemaining() - 1;
+      this.blockTimeRemaining.set(remaining);
+      
+      if (remaining <= 0) {
+        this.unblockUser();
+      }
+    }, 1000);
+    
+    this.setError(
+      `Trop de tentatives échouées. Réessayez dans ${Math.ceil(this.blockTimeRemaining() / 60)} minutes.`
+    );
+  }
+
+  private unblockUser(): void {
+    this.isBlocked.set(false);
+    this.blockTimeRemaining.set(0);
+    this.resetLoginAttempts();
+    
+    // Réactiver le formulaire seulement si pas en loading
+    if (!this.isLoading()) {
+      this.enableForm();
+    }
+    
+    if (this.blockTimer) {
+      clearInterval(this.blockTimer);
+    }
+    
+    this.clearError();
+  }
+
+  // Autres méthodes utilitaires
+  private checkLoginAttempts(): void {
+    const attempts = localStorage.getItem('login_attempts');
+    const lastAttempt = localStorage.getItem('last_attempt_time');
+    
+    if (attempts && lastAttempt) {
+      this.loginAttempts.set(parseInt(attempts, 10));
+      const lastAttemptTime = parseInt(lastAttempt, 10);
+      const timeDiff = Date.now() - lastAttemptTime;
+      
+      if (timeDiff > 15 * 60 * 1000) {
+        this.resetLoginAttempts();
+      } else if (this.loginAttempts() >= this.maxLoginAttempts) {
+        this.blockUser(15 * 60 * 1000 - timeDiff);
+      }
+    }
+  }
+
+  private resetLoginAttempts(): void {
+    this.loginAttempts.set(0);
+    localStorage.removeItem('login_attempts');
+    localStorage.removeItem('last_attempt_time');
+  }
+
+  private determineRedirectUrl(user: any): string {
+    const storedUrl = sessionStorage.getItem('redirect_url');
+    if (storedUrl) return storedUrl;
+    
+    const roleUrls: Record<string, string> = {
+      admin: '/admin/dashboard',
+      manager: '/manager/dashboard',
+      user: '/dashboard'
+    };
+    
+    return roleUrls[user.role] || '/dashboard';
   }
 
   private handleHttpError(error: HttpErrorResponse): Observable<never> {
     return throwError(() => error);
   }
 
-  /**
-   * Gestion de l'affichage des erreurs
-   */
-  private showErrorMessage(message: string): void {
-    this.errorMessage = message;
-    this.showError = true;
+  // Méthodes d'initialisation par rôle (à implémenter)
+  private async initializeAdminFeatures(): Promise<void> {
+    console.log('Initialisation fonctionnalités admin');
   }
 
-  private hideError(): void {
-    this.showError = false;
-    this.errorMessage = '';
+  private async initializeManagerFeatures(): Promise<void> {
+    console.log('Initialisation fonctionnalités manager');
   }
 
-  /**
-   * Reset du formulaire
-   */
-  private resetForm(): void {
-    this.loginModel = {
-      email: '',
-      password: '',
-      rememberMe: false
-    };
+  private async initializeUserFeatures(): Promise<void> {
+    console.log('Initialisation fonctionnalités utilisateur');
+  }
+
+  // ===== GETTERS POUR LE TEMPLATE =====
+  
+  // Accès facile aux contrôles du formulaire
+  get email() { return this.loginForm.get('email'); }
+  get password() { return this.loginForm.get('password'); }
+  get rememberMe() { return this.loginForm.get('rememberMe'); }
+  
+  // Vérifications de validation pour le template
+  hasError(controlName: string, errorType?: string): boolean {
+    const control = this.loginForm.get(controlName);
+    if (!control || !control.touched) return false;
     
-    const form = this.loginForm();
-    if (form) {
-      form.resetForm();
-    }
-  }
-
-  /**
-   * Méthodes utilitaires pour le template
-   */
-  togglePasswordVisibility(): void {
-    this.showPassword = !this.showPassword;
-  }
-
-  getFormattedTimeRemaining(): string {
-    const minutes = Math.floor(this.blockTimeRemaining / 60);
-    const seconds = this.blockTimeRemaining % 60;
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  }
-
-  /**
-   * Validation en temps réel pour le template
-   */
-  isEmailValid(): boolean {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return this.loginModel.email === '' || emailRegex.test(this.loginModel.email);
-  }
-
-  isPasswordValid(): boolean {
-    return this.loginModel.password === '' || this.loginModel.password.length >= 8;
+    return errorType ? control.hasError(errorType) : control.invalid;
   }
 }
