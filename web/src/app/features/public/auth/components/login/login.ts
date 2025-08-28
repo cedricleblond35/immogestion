@@ -6,24 +6,9 @@ import { HttpClient, HttpHeaders, HttpErrorResponse } from '@angular/common/http
 import { catchError, finalize, takeUntil, timeout, retry, tap } from 'rxjs/operators';
 import { throwError, Subject, Observable, timer } from 'rxjs';
 
-// Interfaces modernes
-export interface LoginCredentials {
-  email: string;
-  password: string;
-}
+import { LoginCredentials, AuthResponse } from '../../models/auth.interface';
+import { AuthService } from '../../services/auth';
 
-export interface AuthResponse {
-  access_token: string;
-  refresh_token: string;
-  expires_in: number;
-  user: {
-    id: string;
-    email: string;
-    role: string;
-    firstName?: string;
-    lastName?: string;
-  };
-}
 
 @Component({
   selector: 'app-login',
@@ -34,10 +19,10 @@ export interface AuthResponse {
 })
 export class Login implements OnInit, OnDestroy {
   
-  // ===== INJECTION DES DÉPENDANCES (MODERNE) =====
+  // ===== INJECTION DES DÉPENDANCES =====
   private readonly fb = inject(FormBuilder);
-  private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
+  private readonly authService = inject(AuthService);
   
   // ===== SIGNALS (ANGULAR 17+) =====
   // État de l'interface utilisateur avec signals
@@ -108,7 +93,7 @@ export class Login implements OnInit, OnDestroy {
     // Pré-remplir l'email si "Se souvenir de moi" était coché
     const rememberedEmail = localStorage.getItem('remember_user');
     if (rememberedEmail) {
-      console.log('💾 Email mémorisé trouvé:', rememberedEmail);
+      console.log('Email mémorisé trouvé:', rememberedEmail);
       this.loginForm.patchValue({ 
         email: rememberedEmail,
         rememberMe: true 
@@ -174,7 +159,7 @@ export class Login implements OnInit, OnDestroy {
 
   // ===== SOUMISSION DU FORMULAIRE (MODERNE) =====
   async onSubmit(): Promise<void> {
-    console.log('=== DÉBUT DE onSubmit() (VERSION MODERNE) ===');
+    console.log('=== debut onSubmit() ===');
     
     // Marquer tous les champs comme touchés pour afficher les erreurs
     this.loginForm.markAllAsTouched();
@@ -224,9 +209,7 @@ export class Login implements OnInit, OnDestroy {
 
     try {
       console.log('Appel à l\'API de connexion...');
-      
-      const response = await this.callLoginAPI(credentials);
-      
+      const response = await this.authService.callLoginAPI(credentials);
       console.log('Connexion réussie:', response);
       
       await this.handleLoginSuccess(response, formValue.rememberMe);
@@ -259,29 +242,6 @@ export class Login implements OnInit, OnDestroy {
     }
   }
 
-  // ===== APPEL API MODERNE =====
-  private async callLoginAPI(credentials: LoginCredentials): Promise<AuthResponse> {
-    console.log('Appel API de connexion...');
-    
-    const headers = new HttpHeaders({
-      'Content-Type': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
-      'X-Request-ID': this.generateRequestId()
-    });
-
-    const url = `${this.API_URL}/auth/login`;
-    
-    return this.http.post<AuthResponse>(url, credentials, { 
-      headers,
-      withCredentials: true
-    }).pipe(
-      tap(response => console.log('Réponse API reçue:', response)),
-      timeout(10000),
-      retry({ count: 2, delay: this.retryStrategy }),
-      takeUntil(this.destroy$),
-      catchError(this.handleHttpError.bind(this))
-    ).toPromise() as Promise<AuthResponse>;
-  }
 
   // ===== STRATÉGIE DE RETRY MODERNE =====
   private retryStrategy = (error: any, retryCount: number) => {
