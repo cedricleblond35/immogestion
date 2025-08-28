@@ -8,6 +8,8 @@ import { throwError, Subject, Observable, timer } from 'rxjs';
 
 import { LoginCredentials, AuthResponse } from '../../models/auth.interface';
 import { AuthService } from '../../services/auth';
+import { Logger } from '@core/logging/logger';
+
 
 
 @Component({
@@ -18,11 +20,15 @@ import { AuthService } from '../../services/auth';
   styleUrl: './login.scss',
 })
 export class Login implements OnInit, OnDestroy {
+
   
   // ===== INJECTION DES DÉPENDANCES =====
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
   private readonly authService = inject(AuthService);
+  private readonly logger = inject(Logger);
+
+  
   
   // ===== SIGNALS (ANGULAR 17+) =====
   // État de l'interface utilisateur avec signals
@@ -36,7 +42,7 @@ export class Login implements OnInit, OnDestroy {
   // Constantes
   readonly maxLoginAttempts = 5;
   
-  // Computed signals (calculés automatiquement)
+  // Computed signals
   readonly showError = computed(() => this.errorMessage() !== '');
   readonly formattedTimeRemaining = computed(() => {
     const remaining = this.blockTimeRemaining();
@@ -46,7 +52,7 @@ export class Login implements OnInit, OnDestroy {
   });
   readonly remainingAttempts = computed(() => this.maxLoginAttempts - this.loginAttempts());
   
-  // ===== REACTIVE FORM (MODERNE) =====
+  // ===== REACTIVE FORM =====
   readonly loginForm: FormGroup = this.fb.group({
     email: [
       { value: '', disabled: false }, // ← État initial du disabled
@@ -78,16 +84,17 @@ export class Login implements OnInit, OnDestroy {
   private blockTimer?: any;
 
   ngOnInit(): void {
-    console.log('Initialisation du composant Login moderne');
+    this.logger.debug('Login component initialized');
     
     // Vérifier si l'utilisateur est déjà connecté
     if (this.isAuthenticated()) {
-      console.log('Utilisateur déjà connecté, redirection...');
+      this.logger.info('User already authenticated, redirecting to dashboard');
       this.router.navigate(['/dashboard']);
       return;
     }
 
-    // Vérifier les tentatives de connexion précédentes
+    // Check previous login attempts
+    this.logger.debug('Checking previous login attempts...');
     this.checkLoginAttempts();
     
     // Pré-remplir l'email si "Se souvenir de moi" était coché
@@ -179,10 +186,12 @@ export class Login implements OnInit, OnDestroy {
     }
 
     if (this.loginForm.invalid) {
-      console.log('Formulaire invalide');
+      this.logger.warn('Login form is invalid');
       this.setError('Veuillez corriger les erreurs dans le formulaire');
       return;
     }
+
+    this.logger.info('Login form is valid, preparing to submit');
 
     console.log('Formulaire valide, préparation de l\'envoi...');
 
@@ -242,23 +251,7 @@ export class Login implements OnInit, OnDestroy {
     }
   }
 
-
-  // ===== STRATÉGIE DE RETRY MODERNE =====
-  private retryStrategy = (error: any, retryCount: number) => {
-    console.log(`Tentative ${retryCount} après erreur:`, error.status);
-    
-    // Pas de retry pour les erreurs client (4xx)
-    if (error.status >= 400 && error.status < 500) {
-      console.log('Pas de retry pour erreur client');
-      return throwError(() => error);
-    }
-    
-    const delay = retryCount * 1000;
-    console.log(`Retry dans ${delay}ms...`);
-    return timer(delay);
-  };
-
-  // ===== GESTION DU SUCCÈS (MODERNE) =====
+  // ===== GESTION DU SUCCÈS =====
   private async handleLoginSuccess(response: AuthResponse, rememberMe: boolean): Promise<void> {
     console.log('Traitement du succès de connexion...');
 

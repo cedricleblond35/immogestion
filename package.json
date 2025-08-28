@@ -1,6 +1,7 @@
 {
   "dependencies": {
-    "@angular/cdk": "^20.2.0"
+    "@angular/cdk": "^20.2.0",
+    "ngx-logger": "^5.0.12"
   },
   "devDependencies": {
     "sass": "^1.90.0"

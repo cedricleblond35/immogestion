@@ -1,19 +1,29 @@
-/* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html. */
-/* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options. */
 {
   "compileOnSave": false,
   "compilerOptions": {
-    "strict": true,
+    /* ---------- Strict type checking ---------- */
+    "strict": true,                                 // Enable all strict mode checks
     "noImplicitOverride": true,
     "noPropertyAccessFromIndexSignature": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "skipLibCheck": true,
+    "noImplicitReturns": true,                      // Report error when not all code paths in function return a value
+    "noFallthroughCasesInSwitch": true,             // Report errors for fallthrough cases in switch statements
+    "skipLibCheck": true,                           // Skip type checking of declaration files
     "isolatedModules": true,
     "experimentalDecorators": true,
     "importHelpers": true,
+    /* ---------- Target & modules ---------- */
     "target": "ES2022",
-    "module": "preserve"
+    "module": "preserve",
+    /* ---------- Module resolution & path aliases ---------- */
+    "baseUrl": "src",                               // Base directory to resolve non-relative module names
+    "paths": {
+      "@app/*": ["app/*"],
+      "@environments/*": ["environnements/*"],
+      "@assets/*": ["assets/*"],
+      "@core/*": ["app/core/*"],
+      "@shared/*": ["app/shared/*"],
+      "@features/*": ["app/features/*"]
+    }
   },
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,

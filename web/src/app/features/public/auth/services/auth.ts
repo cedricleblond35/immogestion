@@ -1,4 +1,3 @@
-// immogestion/web/src/app/features/public/auth/services/auth.service.ts
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpErrorResponse } from '@angular/common/http';
 import { catchError, timeout, retry, tap, takeUntil, Observable, throwError, timer, firstValueFrom } from 'rxjs';
