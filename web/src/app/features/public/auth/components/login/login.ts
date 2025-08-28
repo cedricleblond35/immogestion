@@ -3,7 +3,7 @@ import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angula
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
-import { takeUntil } from 'rxjs/operators';
+import { takeUntil} from 'rxjs/operators';
 import { throwError, Subject, Observable, timer } from 'rxjs';
 
 import { LoginCredentials, AuthResponse } from '../../models/auth.interface';
