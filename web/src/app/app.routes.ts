@@ -19,7 +19,7 @@ export const routes: Routes = [
     ]
   },
 
-  // Layout Privé (protégé)
+  // Layout Privé
   {
     path: '',
     component: PrivateLayout,
@@ -39,6 +39,6 @@ export const routes: Routes = [
   },
   
    
-  // Catch-all → si route inconnue, on renvoie sur "/"
+  // Catch-all
   { path: '**', redirectTo: '' }
 ];

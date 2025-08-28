@@ -2,8 +2,8 @@ import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { HttpClient, HttpHeaders, HttpErrorResponse } from '@angular/common/http';
-import { catchError, finalize, takeUntil, timeout, retry, tap } from 'rxjs/operators';
+import { HttpErrorResponse } from '@angular/common/http';
+import { takeUntil } from 'rxjs/operators';
 import { throwError, Subject, Observable, timer } from 'rxjs';
 
 import { LoginCredentials, AuthResponse } from '../../models/auth.interface';

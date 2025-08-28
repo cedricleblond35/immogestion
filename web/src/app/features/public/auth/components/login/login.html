@@ -1,196 +1,165 @@
-<div class="login-container">
-  <div class="login-card">
-    
-    <!-- Header -->
-    <div class="login-header">
-      <h1>Connexion</h1>
-      <p>Accédez à votre espace de gestion immobilière</p>
-    </div>
-
-    <!-- Blockage alert -->
-    @if (isBlocked()) {
-      <div class="alert alert-danger" role="alert">
-        <div class="alert-content">
-          <i class="icon-clock"></i>
-          <div>
-            <strong>Compte temporairement bloqué</strong>
-            <p>Trop de tentatives de connexion échouées.</p>
-            <p>Réessayez dans : <strong>{{ formattedTimeRemaining() }}</strong></p>
-          </div>
+<div class="container d-flex justify-content-center align-items-center min-vh-100">
+  <div class="row w-100">
+      <div class="col-md-6 d-flex justify-content-center align-items-center">
+        <img src="assets/image.jpg" alt="Logo ImmoGestion" class="img-fluid rounded">
+      </div>
+      <div class="col-md-6">
+        <div class="text-center mb-4">
+        <h2 class="text-primary fw-bold">Connexion</h2>
+        <p class="text-muted lead">Accédez à votre espace de gestion immobilière</p>
         </div>
-      </div>
-    }
+        <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="form-signin" novalidate>
+          <!-- Email -->
+          <div class="form-group mb-3 form-check">
+            <label for="email" class="form-label">Adresse email <span class="required">*</span></label>
+            <div class="input-wrapper">
+              <div class="input-group">
+                <span class="input-icon"><i class="icon-email"></i></span>
+                <input type="email" id="email" formControlName="email" class="form-control" [class.is-invalid]="hasError('email')" [class.is-valid]="email?.valid && email?.touched" placeholder="exemple@domaine.com" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="255">
+              </div>
 
-    <!-- Alert -->
-    @if (showError() && !isBlocked()) {
-      <div class="alert alert-warning" role="alert">
-        <i class="icon-warning"></i>
-        <span>{{ errorMessage() }}</span>
-      </div>
-    }
-
-    <!-- Reactive Forms -->
-    <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="form-signin" novalidate>
-      <!-- Email -->
-      <div class="form-group">
-        <label for="email" class="form-label">
-          Adresse email <span class="required">*</span>
-        </label>
-        <div class="input-wrapper">
-          <div class="input-group">
-            <span class="input-icon">
-              <i class="icon-email"></i>
-            </span>
-            
-            <input type="email" id="email" formControlName="email" class="form-control" [class.is-invalid]="hasError('email')" [class.is-valid]="email?.valid && email?.touched" placeholder="exemple@domaine.com" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="255">
-          </div>
-
-          @if (hasError('email') && email?.touched) {
-            <div class="invalid-feedback">
-              @if (hasError('email', 'required')) {
-                <small>L'adresse email est requise</small>
-              }
-              @if (hasError('email', 'email')) {
-                <small>Format d'email invalide</small>
-              }
-              @if (hasError('email', 'maxlength')) {
-                <small>Email trop long (max 255 caractères)</small>
+              @if (hasError('email') && email?.touched) {
+                <div class="invalid-feedback">
+                  @if (hasError('email', 'required')) {
+                    <small>L'adresse email est requise</small>
+                  }
+                  @if (hasError('email', 'email')) {
+                    <small>Format d'email invalide</small>
+                  }
+                  @if (hasError('email', 'maxlength')) {
+                    <small>Email trop long (max 255 caractères)</small>
+                  }
+                </div>
               }
             </div>
-          }
-        </div>
-      </div>
+          </div>
 
-      <!-- Champ Mot de passe -->
-      <div class="form-group">
-        <label for="password" class="form-label">
-          Mot de passe <span class="required">*</span>
-        </label>
-        <div class="input-wrapper">
-          <div class="input-group">
-            <span class="input-icon">
-              <i class="icon-lock"></i>
-            </span>
-            <!-- ⭐ Utilisation du signal pour showPassword, disabled géré par FormControl -->
-            <input
-              [type]="showPassword() ? 'text' : 'password'"
-              id="password"
-              formControlName="password"
-              class="form-control"
-              [class.is-invalid]="hasError('password')"
-              [class.is-valid]="password?.valid && password?.touched"
-              placeholder="Votre mot de passe"
-              autocomplete="current-password"
-              maxlength="128">
-            
-            <!-- Bouton toggle mot de passe - disabled géré par logique métier -->
+          <!-- Password -->
+          <div class="form-group mb-3 form-check">
+            <label for="password" class="form-label">Mot de passe <span class="required">*</span></label>
+            <div class="input-wrapper">
+              <div class="input-group">
+                <span class="input-icon">
+                  <i class="icon-lock"></i>
+                </span>
+                <input
+                  [type]="showPassword() ? 'text' : 'password'"
+                  id="password"
+                  formControlName="password"
+                  class="form-control"
+                  [class.is-invalid]="hasError('password')"
+                  [class.is-valid]="password?.valid && password?.touched"
+                  placeholder="Votre mot de passe"
+                  autocomplete="current-password"
+                  maxlength="128">
+                
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary"
+                  [disabled]="isLoading() || isBlocked()"
+                  (click)="togglePasswordVisibility()"
+                  [attr.aria-label]="showPassword() ? 'Masquer le mot de passe' : 'Afficher le mot de passe'">
+                  <i [class]="showPassword() ? 'icon-eye-off' : 'icon-eye'"></i>
+                </button>
+              </div>
+              
+              <!-- Messages d'erreur pour le mot de passe -->
+              @if (hasError('password') && password?.touched) {
+                <div class="invalid-feedback">
+                  @if (hasError('password', 'required')) {
+                    <small>Le mot de passe est requis</small>
+                  }
+                  @if (hasError('password', 'minlength')) {
+                    <small>Le mot de passe doit contenir au moins 8 caractères</small>
+                  }
+                  @if (hasError('password', 'maxlength')) {
+                    <small>Mot de passe trop long (max 128 caractères)</small>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+
+          <!-- Case "Se souvenir de moi" -->
+          <div class="form-group mb-3 form-check">
+            <label class="checkbox-label">
+              <input
+                type="checkbox"
+                formControlName="rememberMe"
+                class="checkbox-input">
+              <span class="checkbox-custom"></span>
+              <span class="checkbox-text">Se souvenir de moi</span>
+            </label>
+          </div>
+
+          <!-- Informations de sécurité -->
+          @if (loginAttempts() > 0 && loginAttempts() < maxLoginAttempts) {
+            <div class="security-info">
+              <small class="text-warning">
+                <i class="icon-warning"></i>
+                {{ remainingAttempts() }} tentative(s) restante(s)
+              </small>
+            </div>
+          }
+
+          <!-- Bouton de soumission -->
+          <div class="form-group mb-3 form-check">
             <button
-              type="button"
-              class="password-toggle"
-              [disabled]="isLoading() || isBlocked()"
-              (click)="togglePasswordVisibility()"
-              [attr.aria-label]="showPassword() ? 'Masquer le mot de passe' : 'Afficher le mot de passe'">
-              <i [class]="showPassword() ? 'icon-eye-off' : 'icon-eye'"></i>
+              type="submit"
+              class="btn btn-primary btn-login"
+              [disabled]="loginForm.invalid || isLoading() || isBlocked()"
+              [class.loading]="isLoading()">
+              @if (!isLoading()) {
+                <span class="btn-text">
+                  <i class="icon-login"></i>
+                  Se connecter
+                </span>
+              } @else {
+                <span class="btn-loading">
+                  <i class="icon-spinner spinning"></i>
+                  Connexion en cours...
+                </span>
+              }
             </button>
           </div>
-          
-          <!-- Messages d'erreur pour le mot de passe -->
-          @if (hasError('password') && password?.touched) {
-            <div class="invalid-feedback">
-              @if (hasError('password', 'required')) {
-                <small>Le mot de passe est requis</small>
-              }
-              @if (hasError('password', 'minlength')) {
-                <small>Le mot de passe doit contenir au moins 8 caractères</small>
-              }
-              @if (hasError('password', 'maxlength')) {
-                <small>Mot de passe trop long (max 128 caractères)</small>
-              }
-            </div>
-          }
-        </div>
+
+          <!-- Liens utiles -->
+          <div class="form-links">
+            <a href="/auth/forgot-password" 
+              class="link-secondary"
+              [class.disabled]="isLoading()">
+              Mot de passe oublié ?
+            </a>
+            --            
+            <a href="/auth/register" 
+              class="link-secondary"
+              [class.disabled]="isLoading()">
+              Créer un compte
+            </a>
+          </div>
+        </form>
       </div>
-
-      <!-- Case "Se souvenir de moi" -->
-      <div class="form-group checkbox-group">
-        <label class="checkbox-label">
-          <!-- ⭐ REACTIVE FORMS pour checkbox, disabled géré par FormControl -->
-          <input
-            type="checkbox"
-            formControlName="rememberMe"
-            class="checkbox-input">
-          <span class="checkbox-custom"></span>
-          <span class="checkbox-text">Se souvenir de moi</span>
-        </label>
-      </div>
-
-      <!-- Informations de sécurité -->
-      @if (loginAttempts() > 0 && loginAttempts() < maxLoginAttempts) {
-        <div class="security-info">
-          <small class="text-warning">
-            <i class="icon-warning"></i>
-            {{ remainingAttempts() }} tentative(s) restante(s)
-          </small>
-        </div>
-      }
-
-      <!-- Bouton de soumission -->
-      <div class="form-actions">
-        <button
-          type="submit"
-          class="btn btn-primary btn-login"
-          [disabled]="loginForm.invalid || isLoading() || isBlocked()"
-          [class.loading]="isLoading()">
-          
-          <!-- ⭐ Utilisation des signals pour l'état de chargement -->
-          @if (!isLoading()) {
-            <span class="btn-text">
-              <i class="icon-login"></i>
-              Se connecter
-            </span>
-          } @else {
-            <span class="btn-loading">
-              <i class="icon-spinner spinning"></i>
-              Connexion en cours...
-            </span>
-          }
-        </button>
-      </div>
-
-      <!-- Liens utiles -->
-      <div class="form-links">
-        <a href="/auth/forgot-password" 
-           class="link-secondary"
-           [class.disabled]="isLoading()">
-          Mot de passe oublié ?
-        </a>
-        
-        <span class="separator">•</span>
-        
-        <a href="/auth/register" 
-           class="link-secondary"
-           [class.disabled]="isLoading()">
-          Créer un compte
-        </a>
-      </div>
-    </form>
-
-    <!-- Informations de sécurité -->
-    <div class="security-notice">
-      <small class="text-muted">
-        <i class="icon-shield"></i>
-        Votre connexion est sécurisée par chiffrement SSL
-      </small>
-    </div>
   </div>
 </div>
 
-<!-- Loading overlay global -->
-@if (isLoading()) {
-  <div class="loading-overlay">
-    <div class="loading-spinner">
-      <i class="icon-spinner spinning"></i>
-      <p>Connexion en cours...</p>
+<!-- Blockage alert -->
+@if (isBlocked()) {
+  <div class="alert alert-danger" role="alert">
+    <div class="alert-content">
+      <i class="icon-clock"></i>
+      <div>
+        <strong>Compte temporairement bloqué</strong>
+        <p>Trop de tentatives de connexion échouées.</p>
+        <p>Réessayez dans : <strong>{{ formattedTimeRemaining() }}</strong></p>
+      </div>
     </div>
+  </div>
+}
+
+<!-- Alert -->
+@if (showError() && !isBlocked()) {
+  <div class="alert alert-warning" role="alert">
+    <i class="icon-warning"></i>
+    <span>{{ errorMessage() }}</span>
   </div>
 }
