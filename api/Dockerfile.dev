@@ -15,25 +15,49 @@ ENV CGO_ENABLED=0
 # Copie du code
 COPY . .
 
-# Initialisation du module Go uniquement si go.mod n'existe pas
-RUN if [ ! -f go.mod ]; then go mod init immogestion-api; fi && \
-    go mod tidy && \
-    go mod download && \
-    go mod verify
+# Download des dépendances
+RUN go work sync
 
 # Création des dossiers nécessaires
-RUN mkdir -p tmp internal
+RUN mkdir -p tmp
 
-# Utilisation du fichier .air.toml existant
-RUN ls -la .air.toml && echo "✅ Configuration Air trouvée"
+# Test de compilation pour vérifier que tout fonctionne
+RUN echo "=== Test compilation gateway ===" && \
+    cd gateway && go build -o ../tmp/test-gateway ./cmd/gateway && \
+    rm ../tmp/test-gateway && \
+    echo "Gateway compilation OK"
 
-# Test que tout fonctionne AVANT de lancer
-RUN echo "=== Test compilation ===" && \
-    go build -o tmp/test-build ./cmd/api && \
-    rm tmp/test-build && \
-    echo "✅ Compilation OK"
+RUN echo "=== Test compilation auth ===" && \
+    cd services/auth && go build -o ../../tmp/test-auth ./cmd/server && \
+    rm ../../tmp/test-auth && \
+    echo "Auth compilation OK"
+
+RUN echo "=== Test compilation property ===" && \
+    cd services/property && go build -o ../../tmp/test-property ./cmd/server && \
+    rm ../../tmp/test-property && \
+    echo "Property compilation OK"
+
+RUN echo "=== Test compilation tenant ===" && \
+    cd services/tenant && go build -o ../../tmp/test-tenant ./cmd/server && \
+    rm ../../tmp/test-tenant && \
+    echo "Tenant compilation OK"
+
+RUN echo "=== Test compilation shared ===" && \
+    cd shared && go build -o ../tmp/test-shared ./cmd/server && \
+    rm ../tmp/test-shared && \
+    echo "Shared compilation OK"
 
 EXPOSE 8080
 
-# 🎯 MODIFICATION ICI - Solution permanente qui fonctionne
-CMD ["sh", "-c", "go mod tidy && go mod download && go run ./cmd/api"]
+RUN echo "=== DEBUG: Structure copiée ===" && \
+    pwd && \
+    ls -la && \
+    echo "=== Gateway exists? ===" && \
+    ls -la gateway/ 2>/dev/null || echo "Gateway folder missing!" && \
+    echo "=== Services exists? ===" && \
+    ls -la services/ 2>/dev/null || echo "Services folder missing!"
+
+#CMD ["sh", "-c", "go mod tidy && go mod download && go run ./cmd/api"]
+#CMD ["air", "-c", ".air.toml"]
+#CMD ["sh", "-c", "go work sync && go run ./api-gateway/cmd/gateway"]
+CMD ["sh", "-c", "cd gateway && go mod tidy && go mod download && go run ./cmd/gateway"]

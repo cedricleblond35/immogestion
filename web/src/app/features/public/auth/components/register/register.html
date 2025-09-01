@@ -1,1 +1,94 @@
-<p>register works!</p>
+<div class="container d-flex justify-content-center align-items-center min-vh-100">
+  <div class="row w-100">
+      <div class="col-md-6 d-flex justify-content-center align-items-center">
+        <img src="assets/image.jpg" alt="Logo ImmoGestion" class="img-fluid rounded">
+      </div>
+      <div class="col-md-6">
+        <div class="text-center mb-4">
+        <h2 class="text-primary fw-bold">Créez votre compte</h2>
+        <p class="text-muted lead">Rapide et gratuit</p>
+        </div>
+        <form [formGroup]="registerForm" (ngSubmit)="onSubmit()" class="form-signin" novalidate>
+            <input type="hidden" formControlName="formId">
+            <div class="form-group mb-3">
+                <label for="company" class="form-label">Entreprise <span class="required">*</span></label>
+                <div class="input-wrapper">
+                    <div class="input-group">
+                        <span class="input-icon" aria-hidden="true"><i class="icon-building"></i></span> <!-- Changé en icône plus pertinente -->
+                        <input 
+                            type="text" 
+                            id="company" 
+                            class="form-control" 
+                            [ngClass]="{'is-invalid': company?.touched && company?.invalid}" 
+                            formControlName="company" 
+                            placeholder="Nom de l'entreprise"
+                        >
+                        <!-- Affichage des messages d'erreur -->
+                        <div *ngIf="company?.touched && company?.invalid" class="invalid-feedback" >
+                            {{ getErrorMessage('company') }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group mb-3 form-check">
+                <label for="lastname" class="form-label">Nom <span class="required">*</span></label>
+                <div class="input-wrapper">
+                    <div class="input-group">
+                        <span class="input-icon"><i class="icon-email"></i></span>
+                        <input type="text" id="lastname" class="form-control" formControlName="lastname"  placeholder="">
+                    </div>
+                </div>
+            </div>
+            <div class="form-group mb-3 form-check">
+                <label for="firstname" class="form-label">Prenom <span class="required">*</span></label>
+                <div class="input-wrapper">
+                    <div class="input-group">
+                        <span class="input-icon"><i class="icon-email"></i></span>
+                        <input type="text" id="firstname" class="form-control" formControlName="firstname" placeholder="">
+                    </div>
+                </div>
+            </div>
+            <div class="form-group mb-3 form-check">
+                <label for="email" class="form-label">Adresse email <span class="required">*</span></label>
+                <div class="input-wrapper">
+                    <div class="input-group">
+                        <span class="input-icon"><i class="icon-email"></i></span>
+                        <input type="email" id="email" class="form-control" formControlName="email" placeholder="">
+                    </div>
+                </div>
+            </div>
+            <div class="form-group mb-3 form-check">
+                <label for="password" class="form-label">Mot de passe<span class="required">*</span></label>
+                <div class="input-wrapper">
+                    <div class="input-group">
+                        <span class="input-icon"><i class="icon-email"></i></span>
+                        <input type="password" id="password" class="form-control" formControlName="password" placeholder="">
+                    </div>
+                </div>
+            </div>
+            <div class="form-group mb-3 form-check">
+                <label for="confirmPassword" class="form-label">Confirmer le mot de passe <span class="required">*</span></label>
+                <div class="input-wrapper">
+                    <div class="input-group">
+                        <span class="input-icon"><i class="icon-email"></i></span>
+                        <input type="password" id="confirmPassword" formControlName="confirmPassword" class="form-control" placeholder="">
+                    </div>
+                </div>
+            </div>
+            <div class="form-group mb-3 form-check">
+                <div class="form-check">
+                    <input type="checkbox" id="terms"  formControlName="terms"  class="form-check-input">
+                    <label for="terms" class="form-check-label">J'accepte les <a href="#">conditions générales d'utilisation</a> et la <a href="#">politique de confidentialité</a> <span class="required">*</span></label>
+                </div>
+            </div>
+            <div class="form-group mb-3 form-check">
+                <div class="input-wrapper">
+                    <div class="input-group">
+                        <button type="submit" class="btn btn-primary w-100">S'inscrire</button>
+                    </div>
+                </div>
+            </div>
+        </form>
+      </div>
+    </div>
+</div>

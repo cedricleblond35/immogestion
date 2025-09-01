@@ -9,33 +9,29 @@ import { throwError, Subject, Observable, timer } from 'rxjs';
 import { LoginCredentials, AuthResponse } from '../../models/auth.interface';
 import { AuthService } from '../../services/auth';
 import { Logger } from '@core/logging/logger';
+import { environment } from '@environments/environment';
 
 
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [ReactiveFormsModule, CommonModule], // ← Reactive Forms, pas Template-driven
+  imports: [ReactiveFormsModule, CommonModule], // Reactive Forms, not Template-driven
   templateUrl: './login.html',
   styleUrl: './login.scss',
 })
 export class Login implements OnInit, OnDestroy {
-
-  
-  // ===== INJECTION DES DÉPENDANCES =====
+  // ===== Dependency injection =====
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
   private readonly authService = inject(AuthService);
   private readonly logger = inject(Logger);
-
   
-  
-  // ===== SIGNALS (ANGULAR 17+) =====
-  // État de l'interface utilisateur avec signals
-  readonly isLoading = signal(false);
+  // ===== Signals =====
+  readonly isLoading =    signal(false);
   readonly showPassword = signal(false);
   readonly errorMessage = signal('');
-  readonly isBlocked = signal(false);
+  readonly isBlocked =    signal(false);
   readonly blockTimeRemaining = signal(0);
   readonly loginAttempts = signal(0);
   
@@ -45,9 +41,9 @@ export class Login implements OnInit, OnDestroy {
   // Computed signals
   readonly showError = computed(() => this.errorMessage() !== '');
   readonly formattedTimeRemaining = computed(() => {
-    const remaining = this.blockTimeRemaining();
-    const minutes = Math.floor(remaining / 60);
-    const seconds = remaining % 60;
+      const remaining = this.blockTimeRemaining();
+      const minutes = Math.floor(remaining / 60);
+      const seconds = remaining % 60;
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   });
   readonly remainingAttempts = computed(() => this.maxLoginAttempts - this.loginAttempts());
@@ -55,7 +51,7 @@ export class Login implements OnInit, OnDestroy {
   // ===== REACTIVE FORM =====
   readonly loginForm: FormGroup = this.fb.group({
     email: [
-      { value: '', disabled: false }, // ← État initial du disabled
+      { value: '', disabled: false }, //  Initial state of the disabled
       [
         Validators.required,
         Validators.email,
@@ -63,22 +59,16 @@ export class Login implements OnInit, OnDestroy {
       ]
     ],
     password: [
-      { value: '', disabled: false }, // ← État initial du disabled
+      { value: '', disabled: false }, //  Initial state of the disabled
       [
         Validators.required,
         Validators.minLength(8),
         Validators.maxLength(128)
       ]
     ],
-    rememberMe: [{ value: false, disabled: false }] // ← État initial du disabled
+    rememberMe: [{ value: false, disabled: false }] // Initial state of the disabled
   });
-  
-  // ===== CONFIGURATION =====
-  private readonly API_URL = 'http://localhost:8080/api';
-  private readonly TOKEN_KEY = 'immogestion_access_token';
-  private readonly REFRESH_TOKEN_KEY = 'immogestion_refresh_token';
-  private readonly USER_KEY = 'immogestion_user';
-  
+    
   // ===== VARIABLES PRIVÉES =====
   private destroy$ = new Subject<void>();
   private blockTimer?: any;
@@ -97,7 +87,7 @@ export class Login implements OnInit, OnDestroy {
     this.logger.debug('Checking previous login attempts...');
     this.checkLoginAttempts();
     
-    // Pré-remplir l'email si "Se souvenir de moi" était coché
+    // Pre-fill email if "Remember me" was checked
     const rememberedEmail = localStorage.getItem('remember_user');
     if (rememberedEmail) {
       console.log('Email mémorisé trouvé:', rememberedEmail);
@@ -107,7 +97,7 @@ export class Login implements OnInit, OnDestroy {
       });
     }
 
-    // Écouter les changements de formulaire pour validation en temps réel
+    // Setup form validation and valueChanges subscription
     this.setupFormValidation();
   }
 
@@ -121,9 +111,9 @@ export class Login implements OnInit, OnDestroy {
     }
   }
 
-  // ===== CONFIGURATION DE LA VALIDATION EN TEMPS REEL =====
+  // ===== CONFIGURING REAL-TIME VALIDATION =====
   private setupFormValidation(): void {
-    // Effacer les erreurs quand l'utilisateur tape
+    // Clear errors as the user types
     this.loginForm.valueChanges.pipe(
       takeUntil(this.destroy$)
     ).subscribe(() => {
@@ -131,13 +121,9 @@ export class Login implements OnInit, OnDestroy {
         this.clearError();
       }
     });
-
-    // La gestion de l'état disabled sera faite directement dans les méthodes
-    // qui changent les signals (setLoadingState, blockUser, etc.)
-    // Pas besoin d'observer les signals pour cela
   }
 
-  // ===== MÉTHODES POUR GÉRER L'ÉTAT DISABLED DU FORMULAIRE =====
+  // ===== METHODS FOR HANDLING THE DISABLED STATE OF THE FORM =====
   private updateFormDisabledState(disabled: boolean): void {
     const controls = ['email', 'password', 'rememberMe'];
     
@@ -153,7 +139,7 @@ export class Login implements OnInit, OnDestroy {
     });
   }
 
-  // Méthodes publiques pour contrôler l'état du formulaire
+  // Check the status of the form
   private enableForm(): void {
     console.log('Activation du formulaire');
     this.updateFormDisabledState(false);
@@ -164,7 +150,7 @@ export class Login implements OnInit, OnDestroy {
     this.updateFormDisabledState(true);
   }
 
-  // ===== SOUMISSION DU FORMULAIRE (MODERNE) =====
+  // ===== FORM SUBMIT =====
   async onSubmit(): Promise<void> {
     console.log('=== debut onSubmit() ===');
     
@@ -207,13 +193,13 @@ export class Login implements OnInit, OnDestroy {
       password: '[MASQUÉ]' 
     });
 
-    // Validation supplémentaire côté client
+    // Additional client-side validation
     if (!this.validateCredentials(credentials)) {
       console.log('Validation des credentials échouée');
       return;
     }
 
-    // Démarrage de l'appel API
+    // Starting the API call
     this.setLoadingState(true);
 
     try {
@@ -286,11 +272,11 @@ export class Login implements OnInit, OnDestroy {
     console.log('Stockage des données d\'authentification...');
     
     // Tokens
-    localStorage.setItem(this.TOKEN_KEY, response.access_token);
-    localStorage.setItem(this.REFRESH_TOKEN_KEY, response.refresh_token);
+    localStorage.setItem(environment.TOKEN_KEY, response.access_token);
+    localStorage.setItem(environment.REFRESH_TOKEN_KEY, response.refresh_token);
     
     // Informations utilisateur
-    localStorage.setItem(this.USER_KEY, JSON.stringify(response.user));
+    localStorage.setItem(environment.USER_KEY, JSON.stringify(response.user));
     
     // Se souvenir de moi
     if (rememberMe) {
@@ -420,7 +406,7 @@ export class Login implements OnInit, OnDestroy {
 
   // Vérification d'authentification
   private isAuthenticated(): boolean {
-    const token = localStorage.getItem(this.TOKEN_KEY);
+    const token = localStorage.getItem(environment.TOKEN_KEY);
     return token !== null && !this.isTokenExpired(token);
   }
 
