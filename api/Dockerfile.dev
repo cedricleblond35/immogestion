@@ -4,7 +4,7 @@ FROM golang:1.24-alpine
 RUN apk add --no-cache git curl build-base
 
 # Installation d'Air (même si on ne l'utilise plus, au cas où)
-RUN go install github.com/air-verse/air@latest
+#RUN go install github.com/air-verse/air@latest
 
 WORKDIR /app
 

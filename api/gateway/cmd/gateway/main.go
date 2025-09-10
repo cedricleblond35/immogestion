@@ -33,6 +33,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+
 	"strings"
 	"time"
 
@@ -70,7 +71,7 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
-	// Rate limiting middleware (example: 100 requests per minute)
+	// Rate limiting middleware
 	// Configure rate limiting middleware using v3 API
 	rate, err := limiter.NewRateFromFormatted(os.Getenv("RATE_LIMIT_REQUESTS") + "-" + os.Getenv("RATE_LIMIT_DURATION"))
 	if err != nil {
@@ -94,7 +95,7 @@ func main() {
 	// Endpoint to handle user registration requests from Angular
 	r.POST("/api/v1/auth/register", func(c *gin.Context) {
 		// Create a new HTTP request to forward to auth-service
-		req, err := http.NewRequest(http.MethodPost, "http://auth-service:8081/register", c.Request.Body)
+		req, err := http.NewRequest(http.MethodPost, "http://auth-service:" + os.Getenv("AUTH_SERVICE_PORT") + "/register", c.Request.Body)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create request: " + err.Error()})
 			return

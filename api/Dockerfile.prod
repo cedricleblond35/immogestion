@@ -20,7 +20,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     ./cmd/api
 
 # ==============================================
-# 🐳 IMAGE FINALE MINIMALE
+#  IMAGE FINALE MINIMALE
 # ==============================================
 FROM scratch
 

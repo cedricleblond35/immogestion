@@ -40,6 +40,11 @@ services:
     container_name: api_gateway_dev
     restart: unless-stopped
     command: ["sh", "-c", "cd gateway && go run ./cmd/gateway"]
+    env_file:
+      - .env
+    volumes:
+      - ./api:/app
+      - go_mod_cache:/go/pkg/mod
     environment:
       - ENV=development
       - PORT=8080
@@ -51,11 +56,6 @@ services:
       - RATE_LIMIT_REQUESTS=100
       - RATE_LIMIT_DURATION=m
       - CORS_ORIGINS=http://localhost:4200,http://localhost:4201
-    volumes:
-      - ./api:/app
-      - go_mod_cache:/go/pkg/mod
-    env_file:
-      - ./api/.env.dev
     ports:
       - "8080:8080"
     networks:
@@ -63,10 +63,10 @@ services:
     depends_on:
       auth-service:
         condition: service_healthy
-      property-service:
-        condition: service_healthy
-      tenant-service:
-        condition: service_healthy
+      # property-service:
+      #   condition: service_healthy
+      # tenant-service:
+      #   condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -82,14 +82,16 @@ services:
     container_name: auth_service_dev
     restart: unless-stopped
     command: ["sh", "-c", "cd services/auth && go run ./cmd/server"]
+    env_file:
+      - .env
     environment:
       - ENV=development
-      - PORT=8081
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=${DB_NAME:-immobilier_db}
-      - DB_USER=${DB_USER:-immobilier_user}
-      - DB_PASSWORD=${DB_PASSWORD}
+      - AUTH_SERVICE_PORT=${AUTH_SERVICE_PORT}
+      - POSTGRES_HOST=postgres_auth
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
@@ -104,7 +106,7 @@ services:
     networks:
       - immogestion-network
     depends_on:
-      postgres:
+      postgres_auth:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -115,175 +117,203 @@ services:
       retries: 3
       start_period: 45s
 
-  # Service de propriétés
-  property-service:
-    build:
-      context: ./api
-      dockerfile: Dockerfile.dev
-    container_name: property_service_dev
-    restart: unless-stopped
-    command: ["sh", "-c", "cd services/property && go run ./cmd/server"]
-    environment:
-      - ENV=development
-      - PORT=8082
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=${DB_NAME:-immobilier_db}
-      - DB_USER=${DB_USER:-immobilier_user}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
-      - AUTH_SERVICE_URL=http://auth-service:8081
-      - TENANT_SERVICE_URL=http://tenant-service:8083
-      - MAX_FILE_SIZE=10MB
-      - UPLOAD_PATH=/app/uploads
-    volumes:
-      - ./api:/app
-      - go_mod_cache:/go/pkg/mod
-      - property_uploads:/app/uploads
-    ports:
-      - "8082:8082"
-    networks:
-      - immogestion-network
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 45s
+  # # Service de propriétés
+  # property-service:
+  #   build:
+  #     context: ./api
+  #     dockerfile: Dockerfile.dev
+  #   container_name: property_service_dev
+  #   restart: unless-stopped
+  #   command: ["sh", "-c", "cd services/property && go run ./cmd/server"]
+  #   environment:
+  #     - ENV=development
+  #     - PORT=8082
+  #     - DB_HOST=postgres_property
+  #     - DB_PORT=5432
+  #     - DB_NAME=${DB_NAME:-immobilier_db}
+  #     - DB_USER=${DB_USER:-immobilier_user}
+  #     - DB_PASSWORD=${DB_PASSWORD}
+  #     - REDIS_HOST=redis
+  #     - REDIS_PORT=6379
+  #     - REDIS_PASSWORD=${REDIS_PASSWORD}
+  #     - AUTH_SERVICE_URL=http://auth-service:8081
+  #     - TENANT_SERVICE_URL=http://tenant-service:8083
+  #     - MAX_FILE_SIZE=10MB
+  #     - UPLOAD_PATH=/app/uploads
+  #   volumes:
+  #     - ./api:/app
+  #     - go_mod_cache:/go/pkg/mod
+  #     - property_uploads:/app/uploads
+  #   ports:
+  #     - "8082:8082"
+  #   networks:
+  #     - immogestion-network
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 45s
 
-  # Service de tenants/locataires
-  tenant-service:
-    build:
-      context: ./api
-      dockerfile: Dockerfile.dev
-    container_name: tenant_service_dev
-    restart: unless-stopped
-    command: ["sh", "-c", "cd services/tenant && go run ./cmd/server"]
-    environment:
-      - ENV=development
-      - PORT=8083
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=${DB_NAME:-immobilier_db}
-      - DB_USER=${DB_USER:-immobilier_user}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
-      - AUTH_SERVICE_URL=http://auth-service:8081
-      - PROPERTY_SERVICE_URL=http://property-service:8082
-      - EMAIL_SERVICE_URL=http://notification-service:8084
-    volumes:
-      - ./api:/app
-      - go_mod_cache:/go/pkg/mod
-    ports:
-      - "8083:8083"
-    networks:
-      - immogestion-network
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 45s
+  # # Service de tenants/locataires
+  # tenant-service:
+  #   build:
+  #     context: ./api
+  #     dockerfile: Dockerfile.dev
+  #   container_name: tenant_service_dev
+  #   restart: unless-stopped
+  #   command: ["sh", "-c", "cd services/tenant && go run ./cmd/server"]
+  #   environment:
+  #     - ENV=development
+  #     - PORT=8083
+  #     - DB_HOST=postgres
+  #     - DB_PORT=5434
+  #     - DB_NAME=${DB_NAME:-immobilier_db}
+  #     - DB_USER=${DB_USER:-immobilier_user}
+  #     - DB_PASSWORD=${DB_PASSWORD}
+  #     - REDIS_HOST=redis
+  #     - REDIS_PORT=6379
+  #     - REDIS_PASSWORD=${REDIS_PASSWORD}
+  #     - AUTH_SERVICE_URL=http://auth-service:8081
+  #     - PROPERTY_SERVICE_URL=http://property-service:8082
+  #     - EMAIL_SERVICE_URL=http://notification-service:8084
+  #   volumes:
+  #     - ./api:/app
+  #     - go_mod_cache:/go/pkg/mod
+  #   ports:
+  #     - "8083:8083"
+  #   networks:
+  #     - immogestion-network
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 45s
 
-  # Service de notifications (optionnel)
-  notification-service:
-    build:
-      context: ./api
-      dockerfile: Dockerfile.dev
-    container_name: notification_service_dev
-    restart: unless-stopped
-    command: ["sh", "-c", "cd services/notification && go run ./cmd/server"]
-    environment:
-      - ENV=development
-      - PORT=8084
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
-      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
-      - SMTP_PORT=${SMTP_PORT:-587}
-      - SMTP_USER=${SMTP_USER}
-      - SMTP_PASSWORD=${SMTP_PASSWORD}
-    volumes:
-      - ./api:/app
-      - go_mod_cache:/go/pkg/mod
-    ports:
-      - "8084:8084"
-    networks:
-      - immogestion-network
-    depends_on:
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 45s
-    profiles:
-      - full
+  # # Service de notifications (optionnel)
+  # notification-service:
+  #   build:
+  #     context: ./api
+  #     dockerfile: Dockerfile.dev
+  #   container_name: notification_service_dev
+  #   restart: unless-stopped
+  #   command: ["sh", "-c", "cd services/notification && go run ./cmd/server"]
+  #   environment:
+  #     - ENV=development
+  #     - PORT=8084
+  #     - REDIS_HOST=redis
+  #     - REDIS_PORT=6379
+  #     - REDIS_PASSWORD=${REDIS_PASSWORD}
+  #     - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+  #     - SMTP_PORT=${SMTP_PORT:-587}
+  #     - SMTP_USER=${SMTP_USER}
+  #     - SMTP_PASSWORD=${SMTP_PASSWORD}
+  #   volumes:
+  #     - ./api:/app
+  #     - go_mod_cache:/go/pkg/mod
+  #   ports:
+  #     - "8084:8084"
+  #   networks:
+  #     - immogestion-network
+  #   depends_on:
+  #     redis:
+  #       condition: service_healthy
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 45s
+  #   profiles:
+  #     - full
 
-  # Worker pour tâches asynchrones (optionnel)
-  property-worker:
-    build:
-      context: ./api
-      dockerfile: Dockerfile.dev
-    container_name: property_worker_dev
-    restart: unless-stopped
-    command: ["sh", "-c", "cd services/property && go run ./cmd/worker"]
-    environment:
-      - ENV=development
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=${DB_NAME:-immobilier_db}
-      - DB_USER=${DB_USER:-immobilier_user}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
-      - QUEUE_NAME=property_tasks
-    volumes:
-      - ./api:/app
-      - go_mod_cache:/go/pkg/mod
-      - property_uploads:/app/uploads
-    networks:
-      - immogestion-network
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    profiles:
-      - full
+  # # Worker pour tâches asynchrones (optionnel)
+  # property-worker:
+  #   build:
+  #     context: ./api
+  #     dockerfile: Dockerfile.dev
+  #   container_name: property_worker_dev
+  #   restart: unless-stopped
+  #   command: ["sh", "-c", "cd services/property && go run ./cmd/worker"]
+  #   environment:
+  #     - ENV=development
+  #     - DB_HOST=postgres
+  #     - DB_PORT=5432
+  #     - DB_NAME=${DB_NAME:-immobilier_db}
+  #     - DB_USER=${DB_USER:-immobilier_user}
+  #     - DB_PASSWORD=${DB_PASSWORD}
+  #     - REDIS_HOST=redis
+  #     - REDIS_PORT=6379
+  #     - REDIS_PASSWORD=${REDIS_PASSWORD}
+  #     - QUEUE_NAME=property_tasks
+  #   volumes:
+  #     - ./api:/app
+  #     - go_mod_cache:/go/pkg/mod
+  #     - property_uploads:/app/uploads
+  #   networks:
+  #     - immogestion-network
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   profiles:
+  #     - full
 
   # Base de données PostgreSQL
-  postgres:
-    image: postgres:16-alpine
-    container_name: immogestion_postgres_dev
-    environment:
-      - POSTGRES_DB=immobilier_prod
-      - POSTGRES_USER=immobilier_user
-      - POSTGRES_PASSWORD=abc123
+  # postgres:
+  #   image: postgres:16-alpine
+  #   container_name: immogestion_postgres_dev
+  #   env_file:
+  #     - .env
+  #   expose:
+  #     - "5432"
+  #   ports:
+  #     - "5432:5432" # Exposé pour debugging
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #     - ./api/scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+  #   networks:
+  #     - immogestion-network
+  #   healthcheck:
+  #     test:
+  #       [
+  #         "CMD-SHELL",
+  #         "pg_isready -U ${DB_USER:-immobilier_user} -d ${DB_NAME:-immobilier_db}",
+  #       ]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 40s
+
+  postgres_auth:
+    image: postgres:16
+    container_name: postgres_auth
+    env_file:
+      - .env
     expose:
-      - "5432"
+      - "5433"
     ports:
-      - "5432:5432" # Exposé pour debugging
+      - "5433:5432" # Exposé pour debugging
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_auth_data:/var/lib/postgresql/data
       - ./api/scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    environment:
+      - POSTGRES_INITDB_ARGS=--locale-provider=icu --icu-locale=fr-FR --encoding=UTF8 # Locale française ICU (fr-FR pour France)
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     networks:
       - immogestion-network
     healthcheck:
@@ -297,6 +327,30 @@ services:
       retries: 3
       start_period: 40s
 
+  # postgres_property:
+  #   image: postgres:16-alpine
+  #   container_name: postgres_auth
+  #   env_file:
+  #     - .env
+  #   expose:
+  #     - "5434"
+  #   ports:
+  #     - "5434:5432" # Exposé pour debugging
+  #   volumes:
+  #     - postgres_property_data:/var/lib/postgresql/data
+  #     - ./api/scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+  #   networks:
+  #     - immogestion-network
+  #   healthcheck:
+  #     test:
+  #       [
+  #         "CMD-SHELL",
+  #         "pg_isready -U ${DB_USER:-immobilier_user} -d ${DB_NAME:-immobilier_db}",
+  #       ]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 40s
   # Cache Redis
   redis:
     image: redis:7-alpine
@@ -318,50 +372,50 @@ services:
       retries: 3
       start_period: 30s
 
-  # Monitoring avec Prometheus
-  prometheus:
-    image: prom/prometheus:v2.52.0
-    container_name: immogestion_prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./deployments/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
-      - "--web.console.libraries=/etc/prometheus/console_libraries"
-      - "--web.console.templates=/etc/prometheus/consoles"
-      - "--web.enable-lifecycle"
-      - "--storage.tsdb.retention.time=15d"
-    networks:
-      - immogestion-network
-    depends_on:
-      - node-exporter
-      - cadvisor
-    profiles:
-      - monitoring
+  # # Monitoring avec Prometheus
+  # prometheus:
+  #   image: prom/prometheus:v2.52.0
+  #   container_name: immogestion_prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./deployments/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+  #     - prometheus_data:/prometheus
+  #   command:
+  #     - "--config.file=/etc/prometheus/prometheus.yml"
+  #     - "--storage.tsdb.path=/prometheus"
+  #     - "--web.console.libraries=/etc/prometheus/console_libraries"
+  #     - "--web.console.templates=/etc/prometheus/consoles"
+  #     - "--web.enable-lifecycle"
+  #     - "--storage.tsdb.retention.time=15d"
+  #   networks:
+  #     - immogestion-network
+  #   depends_on:
+  #     - node-exporter
+  #     - cadvisor
+  #   profiles:
+  #     - monitoring
 
-  # Visualisation avec Grafana
-  grafana:
-    image: grafana/grafana:11.1.3
-    container_name: immogestion_grafana
-    ports:
-      - "3000:3000"
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./deployments/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./deployments/grafana/dashboards:/var/lib/grafana/dashboards:ro
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
-    networks:
-      - immogestion-network
-    depends_on:
-      - prometheus
-    profiles:
-      - monitoring
+  # # Visualisation avec Grafana
+  # grafana:
+  # image: grafana/grafana:11.1.3
+  # container_name: immogestion_grafana
+  # ports:
+  #   - "3000:3000"
+  # volumes:
+  #   - grafana_data:/var/lib/grafana
+  #   - ./deployments/grafana/provisioning:/etc/grafana/provisioning:ro
+  #   - ./deployments/grafana/dashboards:/var/lib/grafana/dashboards:ro
+  # environment:
+  #   - GF_SECURITY_ADMIN_USER=admin
+  #   - GF_SECURITY_ADMIN_PASSWORD=admin
+  #   - GF_USERS_ALLOW_SIGN_UP=false
+  # networks:
+  #   - immogestion-network
+  # depends_on:
+  #   - prometheus
+  # profiles:
+  #   - monitoring
 
   # Métriques système
   node-exporter:
@@ -412,7 +466,9 @@ volumes:
   node_modules:
   go_mod_cache:
   postgres_data:
+  postgres_auth_data:
+  postgres_property_data:
   redis_data:
-  grafana_data:
-  prometheus_data:
+  # grafana_data:
+  # prometheus_data:
   property_uploads:
