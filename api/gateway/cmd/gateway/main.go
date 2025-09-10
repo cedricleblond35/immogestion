@@ -28,7 +28,6 @@ go run gateway.go
 */
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -81,21 +80,16 @@ func main() {
 	limiter := limiter.New(store, rate)
 	limiterMiddleware := mgin.NewMiddleware(limiter) // v3 middleware constructor
 	r.Use(limiterMiddleware)
-	// Endpoint de healthcheck
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, "OK")
-	})
 
 	// Health check endpoint for API Gateway
-	r.GET("/api/v1/health", func(c *gin.Context) {
+	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "healthy"})
 	})
 
 	// Endpoint to handle user registration requests from Angular
 	r.POST("/api/v1/auth/register", func(c *gin.Context) {
 		// Create a new HTTP request to forward to auth-service
-		req, err := http.NewRequest(http.MethodPost, "http://auth-service:" + os.Getenv("AUTH_SERVICE_PORT") + "/register", c.Request.Body)
+		req, err := http.NewRequest(http.MethodPost, "http://auth-service:"+os.Getenv("AUTH_SERVICE_PORT")+"/register", c.Request.Body)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create request: " + err.Error()})
 			return
@@ -122,6 +116,63 @@ func main() {
 
 		// Forward the response back to the client (Angular)
 		c.Data(resp.StatusCode, resp.Header.Get("Content-Type"), body)
+	})
+
+	// Endpoint to handle user login requests from Angular
+	r.POST("/api/v1/auth/login", func(c *gin.Context) {
+		// Create a new HTTP request to forward to auth-service
+		req, err := http.NewRequest(http.MethodPost, "http://auth-service:"+os.Getenv("AUTH_SERVICE_PORT")+"/login", c.Request.Body)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create request: " + err.Error()})
+			return
+		}
+
+		// Copy relevant headers from the incoming request
+		req.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
+
+		// Send the request to auth-service
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to proxy to auth-service: " + err.Error()})
+			return
+		}
+		defer resp.Body.Close()
+
+		// Read the response body from auth-service
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read response: " + err.Error()})
+			return
+		}
+
+		// Forward the response back to the client (Angular)
+		c.Data(resp.StatusCode, resp.Header.Get("Content-Type"), body)
+	})
+
+	// Endpoint to handle token refresh requests from Angular
+	r.POST("/api/v1/auth/refresh", func(c *gin.Context) {
+		// Create a new HTTP request to forward to auth-service
+		req, err := http.NewRequest(http.MethodPost, "http://auth-service:"+os.Getenv("AUTH_SERVICE_PORT")+"/refresh", c.Request.Body)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create request: " + err.Error()})
+			return
+		}
+
+		// Copy relevant headers from the incoming request
+		req.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
+		req.Header.Set("Authorization", c.Request.Header.Get("Authorization"))
+
+		// Send the request to auth-service
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to proxy to auth-service: " + err.Error()})
+			return
+		}
+		defer resp.Body.Close()
+		// Read the response body from auth-service
+
 	})
 
 	// Get port from environment variable or default to 8080

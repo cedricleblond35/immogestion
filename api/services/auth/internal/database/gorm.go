@@ -23,6 +23,7 @@ import (
 // GORM implémente UserRepository (le repository pour les utilisateurs).
 type GORM struct {
 	db *gorm.DB
+	sugar *zap.SugaredLogger
 }
 
 func (g *GORM) DB() (*sql.DB, error) {
@@ -88,17 +89,24 @@ func GormOpen(ctx context.Context, debugSQL bool, sugar *zap.SugaredLogger) (*GO
 		sugar.Info("SQL debug mode enabled")
 	}
 
-	return &GORM{db: db}, nil
+	return &GORM{
+		db: db,
+		sugar: sugar,
+		}, nil
 }
 
 // Create implémente Create pour un User (avec gestion de doublons via OnConflict).
-func (g *GORM) Create(ctx context.Context, user *model.User, sugar *zap.SugaredLogger) error {
-	err := g.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(user).Error
-	if err != nil {
-		sugar.Errorf("Failed to create user %s: %v", user.Email, err)
-		return fmt.Errorf("failed to create user %s: %w", user.Email, err) // Wrapping avec contexte
+func (g *GORM) Create(ctx context.Context, user *model.User) error {
+	res := g.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(user)
+
+	if res.Error != nil {
+		g.sugar.Errorf("Failed to create user %s: %v", user.Email, res.Error)
+		return fmt.Errorf("failed to create user %s: %w", user.Email, res.Error)
 	}
-	sugar.Infof("User created successfully: ID=%d, email=%s", user.ID, user.Email)
+	if res.RowsAffected == 0 {
+		g.sugar.Warnf("User with email %s already exists, no row inserted", user.Email)
+		return fmt.Errorf("user with email %s already exists", user.Email)
+	}
 	return nil
 }
 

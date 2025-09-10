@@ -3,6 +3,7 @@ package main
 import (
 	"api/services/auth/internal/database"
 	model "api/services/auth/internal/models"
+	"api/services/auth/internal/repository"
 	"context"
 	"fmt"
 	"log"
@@ -105,17 +106,13 @@ func main() {
 			Password:  string(hashedPassword),
 			IsActive:  true,
 		}
-
-		sugar.Infof("user: %s", user)
-
-		if err := db.Create(ctx, user, sugar); err != nil {
-			sugar.Errorf("Failed to create user: %v", err)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"status":  "error",
-					"message": "Internal server error during user creation",
-				})
-			}
+		userRepo := repository.NewUserRepository(db, sugar)
+		if err := userRepo.Create(ctx, user); err != nil {
+			sugar.Errorf("Failed to create user in repository: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  "error",
+				"message": err.Error(),
+			})
 			return
 		}
 
