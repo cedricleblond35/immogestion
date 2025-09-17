@@ -7,13 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
-
-
 
 // =============================================================================
 // STRATÉGIE 1: VARIABLES GLOBALES + FONCTIONS GLOBALES
@@ -172,6 +169,13 @@ type AccessClaims struct {
 	jwt.RegisteredClaims
 }
 
+// RefreshClaims représente les claims pour les refresh tokens
+type RefreshClaims struct {
+	UserID    uint   `json:"uid"`
+	TokenType string `json:"typ"` // "refresh"
+	jwt.RegisteredClaims
+}
+
 // JWTService gère la création et validation des tokens JWT
 type JWTService struct {
 	secretKey       []byte
@@ -238,26 +242,6 @@ func (j *JWTService) ValidateAccessToken(tokenString string) (*AccessClaims, err
 
 	// Validations supplémentaires
 	if err := j.validateClaims(claims); err != nil {
-		return nil, err
-	}
-
-	return claims, nil
-}
-
-// ValidateRefreshToken valide un refresh token et retourne les claims
-func (j *JWTService) ValidateRefreshToken(tokenString string) (*AccessClaims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &AccessClaims{}, j.keyFunc)
-	if err != nil {
-		return nil, fmt.Errorf("erreur lors du parsing du refresh token: %w", err)
-	}
-
-	claims, ok := token.Claims.(*AccessClaims)
-	if !ok || !token.Valid {
-		return nil, errors.New("claims invalides ou refresh token invalide")
-	}
-
-	// Validations supplémentaires pour refresh token
-	if err := j.validateRefreshTokenClaims(claims); err != nil {
 		return nil, err
 	}
 
@@ -339,7 +323,7 @@ func (j *JWTService) GetRefreshTokenTTL() time.Duration {
 // Usage:
 //   // Approche simple
 //   token, err := CreateAccessToken(ctx, userID, email, role)
-//   
+//
 //   // Approche avec configuration
 //   service := NewJWTServiceWithSecret("custom-secret", ttl1, ttl2)
 //   token, err := service.GenerateAccessToken(userID, email, role)
@@ -432,12 +416,11 @@ func (j *JWTService) generateAccessToken(userID uint, email, role, tokenID strin
 
 // generateRefreshToken génère un refresh token
 func (j *JWTService) generateRefreshToken(userID uint, email, role, tokenID string, issuedAt time.Time, expiresAt int64) (string, error) {
-	claims := AccessClaims{
-		UserID: userID,
-		Email:  email,
-		Role:   role,
+	claims := RefreshClaims{
+		UserID:    userID,
+		TokenType: "refresh",
 		RegisteredClaims: jwt.RegisteredClaims{
-			ID:        tokenID + "_refresh", // JTI unique pour le refresh token
+			ID:        tokenID, // <— plus de suffixe
 			IssuedAt:  jwt.NewNumericDate(issuedAt),
 			ExpiresAt: jwt.NewNumericDate(time.Unix(expiresAt, 0)),
 			NotBefore: jwt.NewNumericDate(issuedAt),
@@ -446,7 +429,6 @@ func (j *JWTService) generateRefreshToken(userID uint, email, role, tokenID stri
 			Audience:  []string{"immogestion-gateway"},
 		},
 	}
-
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(j.secretKey)
 }
@@ -518,15 +500,30 @@ func (j *JWTService) validateClaims(claims *AccessClaims) error {
 }
 
 // validateRefreshTokenClaims valide les claims d'un refresh token
-func (j *JWTService) validateRefreshTokenClaims(claims *AccessClaims) error {
+func (j *JWTService) ValidateRefreshToken(tokenString string) (*RefreshClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &RefreshClaims{}, j.keyFunc)
+	if err != nil {
+		return nil, fmt.Errorf("erreur lors du parsing du refresh token: %w", err)
+	}
+
+	claims, ok := token.Claims.(*RefreshClaims)
+	if !ok || !token.Valid {
+		return nil, errors.New("claims invalides ou refresh token invalide")
+	}
+
+	// validations de base + typ=refresh
+	if err := j.validateRefreshClaims(claims); err != nil {
+		return nil, err
+	}
+	return claims, nil
+}
+func (j *JWTService) validateRefreshClaims(claims *RefreshClaims) error {
 	now := time.Now()
 
-	// Vérifier l'issuer
 	if claims.Issuer != "immogestion-auth" {
 		return fmt.Errorf("invalid issuer: expected 'immogestion-auth', got '%s'", claims.Issuer)
 	}
 
-	// Vérifier l'audience
 	requiredAud := "immogestion-gateway"
 	audOK := false
 	for _, a := range claims.Audience {
@@ -539,12 +536,10 @@ func (j *JWTService) validateRefreshTokenClaims(claims *AccessClaims) error {
 		return errors.New("invalid audience")
 	}
 
-	// Vérifier not before (nbf)
 	if claims.NotBefore != nil && claims.NotBefore.Time.After(now) {
 		return errors.New("refresh token not yet valid (nbf)")
 	}
 
-	// Vérifier expiration (exp)
 	if claims.ExpiresAt == nil {
 		return errors.New("refresh token without expiration")
 	}
@@ -552,9 +547,8 @@ func (j *JWTService) validateRefreshTokenClaims(claims *AccessClaims) error {
 		return errors.New("refresh token expired")
 	}
 
-	// Vérifier que c'est bien un refresh token (JTI se termine par "_refresh")
-	if !strings.HasSuffix(claims.ID, "_refresh") {
-		return errors.New("invalid refresh token format")
+	if claims.TokenType != "refresh" {
+		return errors.New("invalid refresh token format") // typ manquant ou incorrect
 	}
 
 	return nil

@@ -88,11 +88,9 @@ func main() {
 	}()
 
 	// Initialiser Redis pour les tokens
-	redisURL := getEnv("REDIS_URL", "redis://:cleb76yebles77@redis:6379")
+	redisURL := getEnv("REDIS_URL", "redis://:"+os.Getenv("REDIS_PASSWORD")+"@redis:6379")
 	redisClient := initRedis(redisURL, sugar)
 	sugar.Infof("Connecting to Redis: %s", redisURL)
-
-
 
 	// Tester la connexion Redis
 	if err := redisClient.Ping(ctx).Err(); err != nil {
@@ -174,7 +172,7 @@ func main() {
 			Firstname: req.Firstname,
 			Email:     req.Email,
 			Password:  string(hashedPassword),
-			Role:      "user", // Rôle par défaut
+			Role:      "user",
 			IsActive:  true,
 		}
 
@@ -203,7 +201,6 @@ func main() {
 		// Stocker le refresh token dans Redis
 		if err := tokenRepo.StoreRefreshToken(ctx, user.ID, tokenID, refreshToken, refreshExp); err != nil {
 			sugar.Errorf("Failed to store refresh token: %v", err)
-			// On continue quand même, l'utilisateur est créé
 		}
 
 		sugar.Infof("New user registration: ID=%d prenom=%s nom=%s mail=%s",
@@ -238,248 +235,267 @@ func main() {
 		})
 	})
 
-	// // Login endpoint
-	// sugar.Info("Setting up /login endpoint...")
-	// r.POST("/login", func(c *gin.Context) {
-	// 	var req LoginRequest
-	// 	if err := c.ShouldBindJSON(&req); err != nil {
-	// 		c.JSON(http.StatusBadRequest, RegisterResponse{
-	// 			Status:  "error",
-	// 			Message: "Invalid request: " + err.Error(),
-	// 		})
-	// 		return
-	// 	}
+	// Login endpoint
+	sugar.Info("Setting up /login endpoint...")
+	r.POST("/login", func(c *gin.Context) {
+		sugar.Info("login called")
+		var req LoginRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, RegisterResponse{
+				Status:  "error",
+				Message: "Invalid request: " + err.Error(),
+			})
+			return
+		}
 
-	// 	// Récupérer l'utilisateur par email
-	// 	user, err := userRepo.GetByEmail(ctx, req.Email)
-	// 	if err != nil {
-	// 		c.JSON(http.StatusUnauthorized, RegisterResponse{
-	// 			Status:  "error",
-	// 			Message: "Email ou mot de passe incorrect",
-	// 		})
-	// 		return
-	// 	}
+		// Récupérer l'utilisateur par email
+		user, err := userRepo.FindByEmail(ctx, req.Email)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, RegisterResponse{
+				Status:  "error",
+				Message: "Email ou mot de passe incorrect",
+			})
+			return
+		}
 
-	// 	// Vérifier si l'utilisateur est actif
-	// 	if !user.IsActive {
-	// 		c.JSON(http.StatusUnauthorized, RegisterResponse{
-	// 			Status:  "error",
-	// 			Message: "Compte utilisateur désactivé",
-	// 		})
-	// 		return
-	// 	}
+		// Vérifier si l'utilisateur est actif
+		if !user.IsActive {
+			c.JSON(http.StatusUnauthorized, RegisterResponse{
+				Status:  "error",
+				Message: "Compte utilisateur désactivé",
+			})
+			return
+		}
 
-	// 	// Vérifier le mot de passe
-	// 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
-	// 		c.JSON(http.StatusUnauthorized, RegisterResponse{
-	// 			Status:  "error",
-	// 			Message: "Email ou mot de passe incorrect",
-	// 		})
-	// 		return
-	// 	}
+		// Vérifier le mot de passe
+		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+			c.JSON(http.StatusUnauthorized, RegisterResponse{
+				Status:  "error",
+				Message: "Email ou mot de passe incorrect",
+			})
+			return
+		}
 
-	// 	// Mettre à jour la dernière connexion
-	// 	if err := userRepo.UpdateLastLogin(ctx, user.ID); err != nil {
-	// 		sugar.Errorf("Failed to update last login: %v", err)
-	// 	}
+		// Mettre à jour la dernière connexion
+		now := time.Now()
+		user.LastLoginAt = &now
+		if err := userRepo.Update(ctx, user); err != nil {
+			sugar.Errorf("Failed to update last login: %v", err)
+		}
 
-	// 	// Générer les tokens JWT
-	// 	accessToken, refreshToken, tokenID, accessExp, refreshExp, err := jwtService.GenerateTokenPair(
-	// 		user.ID, user.Email, user.Role,
-	// 	)
-	// 	if err != nil {
-	// 		sugar.Errorf("Failed to generate tokens: %v", err)
-	// 		c.JSON(http.StatusInternalServerError, RegisterResponse{
-	// 			Status:  "error",
-	// 			Message: "Failed to generate authentication tokens",
-	// 		})
-	// 		return
-	// 	}
+		// Générer les tokens JWT
+		accessToken, refreshToken, tokenID, accessExp, refreshExp, err := jwtService.GenerateTokenPair(
+			user.ID, user.Email, user.Role,
+		)
+		if err != nil {
+			sugar.Errorf("Failed to generate tokens: %v", err)
+			c.JSON(http.StatusInternalServerError, RegisterResponse{
+				Status:  "error",
+				Message: "Failed to generate authentication tokens",
+			})
+			return
+		}
 
-	// 	// Stocker le refresh token dans Redis
-	// 	if err := tokenRepo.StoreRefreshToken(ctx, user.ID, tokenID, refreshToken, refreshExp); err != nil {
-	// 		sugar.Errorf("Failed to store refresh token: %v", err)
-	// 	}
+		// Stocker le refresh token dans Redis
+		sugar.Infof("Stocker le refresh token dans Redis ---------- ")
+		if err := tokenRepo.DeleteRefreshToken(ctx, user.ID, tokenID); err != nil {
+			sugar.Errorf("Failed to store refresh token: %v", err)
+		}
+		if err := tokenRepo.StoreRefreshToken(ctx, user.ID, tokenID, refreshToken, refreshExp); err != nil {
+			sugar.Errorf("Failed to store refresh token: %v", err)
+		}
 
-	// 	sugar.Infof("User login: ID=%d email=%s", user.ID, user.Email)
+		sugar.Infof("User login: ID=%d email=%s", user.ID, user.Email)
 
-	// 	// Préparer les données utilisateur pour la réponse
-	// 	userData := gin.H{
-	// 		"id":         user.ID,
-	// 		"company":    user.Company,
-	// 		"firstname":  user.Firstname,
-	// 		"lastname":   user.Lastname,
-	// 		"email":      user.Email,
-	// 		"role":       user.Role,
-	// 		"is_active":  user.IsActive,
-	// 		"last_login": user.LastLogin,
-	// 	}
+		// Préparer les données utilisateur pour la réponse
+		userData := gin.H{
+			"id":         user.ID,
+			"company":    user.Company,
+			"firstname":  user.Firstname,
+			"lastname":   user.Lastname,
+			"email":      user.Email,
+			"role":       user.Role,
+			"is_active":  user.IsActive,
+			"last_login": now.Format(time.RFC3339),
+		}
 
-	// 	// Réponse avec tokens JWT
-	// 	tokenResponse := TokenResponse{
-	// 		AccessToken:  accessToken,
-	// 		RefreshToken: refreshToken,
-	// 		TokenType:    "Bearer",
-	// 		ExpiresIn:    accessExp,
-	// 		User:         userData,
-	// 	}
+		// Réponse avec tokens JWT
+		tokenResponse := TokenResponse{
+			AccessToken:  accessToken,
+			RefreshToken: refreshToken,
+			TokenType:    "Bearer",
+			ExpiresIn:    accessExp,
+			User:         userData,
+		}
 
-	// 	c.JSON(http.StatusOK, RegisterResponse{
-	// 		Status:  "success",
-	// 		Message: "Login successful",
-	// 		Data:    tokenResponse,
-	// 	})
-	// })
+		c.JSON(http.StatusOK, RegisterResponse{
+			Status:  "success",
+			Message: "Login successful",
+			Data:    tokenResponse,
+		})
+	})
 
-	// // Refresh token endpoint
-	// sugar.Info("Setting up /refresh endpoint...")
-	// r.POST("/refresh", func(c *gin.Context) {
-	// 	var req RefreshTokenRequest
-	// 	if err := c.ShouldBindJSON(&req); err != nil {
-	// 		c.JSON(http.StatusBadRequest, RegisterResponse{
-	// 			Status:  "error",
-	// 			Message: "Refresh token required",
-	// 		})
-	// 		return
-	// 	}
+	// Refresh token endpoint
+	sugar.Info("Setting up /refresh endpoint...")
+	r.POST("/refresh", func(c *gin.Context) {
 
-	// 	// Valider le refresh token
-	// 	claims, err := jwtService.ValidateRefreshToken(req.RefreshToken)
-	// 	if err != nil {
-	// 		c.JSON(http.StatusUnauthorized, RegisterResponse{
-	// 			Status:  "error",
-	// 			Message: "Invalid refresh token: " + err.Error(),
-	// 		})
-	// 		return
-	// 	}
+		sugar.Infof("/refresh called")
+		var req RefreshTokenRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, RegisterResponse{
+				Status:  "error",
+				Message: "Refresh token required",
+			})
+			return
+		}
 
-	// 	// Vérifier si le token existe dans Redis
-	// 	storedToken, err := tokenRepo.GetRefreshToken(ctx, claims.UserID, claims.TokenID)
-	// 	if err != nil || storedToken != req.RefreshToken {
-	// 		c.JSON(http.StatusUnauthorized, RegisterResponse{
-	// 			Status:  "error",
-	// 			Message: "Refresh token not found or invalid",
-	// 		})
-	// 		return
-	// 	}
+		// Valider le refresh token
+		sugar.Infof("Valider le refresh token ---------- ")
+		sugar.Infof("Token reçu: %s", req.RefreshToken)
+		claims, err := jwtService.ValidateRefreshToken(req.RefreshToken)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, RegisterResponse{
+				Status:  "error",
+				Message: "Invalid refresh token: " + err.Error(),
+			})
+			return
+		}
 
-	// 	// Récupérer l'utilisateur pour vérifier qu'il est toujours actif
-	// 	user, err := userRepo.GetByID(ctx, claims.UserID)
-	// 	if err != nil {
-	// 		c.JSON(http.StatusUnauthorized, RegisterResponse{
-	// 			Status:  "error",
-	// 			Message: "User not found",
-	// 		})
-	// 		return
-	// 	}
+		// Vérifier si le token existe dans Redis
+		storedToken, err := tokenRepo.GetRefreshToken(ctx, claims.UserID, claims.ID)
+		log.Printf("Stored token: %s", storedToken)
+		log.Printf("Claims token ID: %s", claims.ID)
+		log.Printf("Claims user ID: %d", claims.UserID)
+		log.Printf("Error retrieving token from Redis: %v", err)
+		// Si le token n'existe pas ou ne correspond pas, rejeter la requête
+		// Ceci gère aussi le cas où le token a expiré (car supprimé de Redis)
+		if err != nil || storedToken != req.RefreshToken {
+			c.JSON(http.StatusUnauthorized, RegisterResponse{
+				Status:  "error",
+				Message: "Refresh token not found or invalid",
+			})
+			return
+		}
 
-	// 	if !user.IsActive {
-	// 		c.JSON(http.StatusUnauthorized, RegisterResponse{
-	// 			Status:  "error",
-	// 			Message: "User account is disabled",
-	// 		})
-	// 		return
-	// 	}
+		// Récupérer l'utilisateur pour vérifier qu'il est toujours actif
+		user, err := userRepo.FindByID(ctx, claims.UserID)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, RegisterResponse{
+				Status:  "error",
+				Message: "User not found",
+			})
+			return
+		}
 
-	// 	// Générer de nouveaux tokens
-	// 	accessToken, newRefreshToken, tokenID, accessExp, refreshExp, err := jwtService.GenerateTokenPair(
-	// 		user.ID, user.Email, user.Role,
-	// 	)
-	// 	if err != nil {
-	// 		c.JSON(http.StatusInternalServerError, RegisterResponse{
-	// 			Status:  "error",
-	// 			Message: "Failed to generate new tokens",
-	// 		})
-	// 		return
-	// 	}
+		if !user.IsActive {
+			c.JSON(http.StatusUnauthorized, RegisterResponse{
+				Status:  "error",
+				Message: "User account is disabled",
+			})
+			return
+		}
 
-	// 	// Supprimer l'ancien refresh token et stocker le nouveau
-	// 	tokenRepo.DeleteRefreshToken(ctx, claims.UserID, claims.TokenID)
-	// 	tokenRepo.StoreRefreshToken(ctx, user.ID, tokenID, newRefreshToken, refreshExp)
+		// Générer de nouveaux tokens
+		accessToken, newRefreshToken, tokenID, accessExp, refreshExp, err := jwtService.GenerateTokenPair(
+			user.ID, user.Email, user.Role,
+		)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, RegisterResponse{
+				Status:  "error",
+				Message: "Failed to generate new tokens",
+			})
+			return
+		}
 
-	// 	sugar.Infof("Token refreshed for user: ID=%d email=%s", user.ID, user.Email)
+		// Supprimer l'ancien refresh token et stocker le nouveau
+		tokenRepo.DeleteRefreshToken(ctx, claims.UserID, claims.ID)
+		tokenRepo.StoreRefreshToken(ctx, user.ID, tokenID, newRefreshToken, refreshExp)
 
-	// 	// Préparer les données utilisateur pour la réponse
-	// 	userData := gin.H{
-	// 		"id":         user.ID,
-	// 		"company":    user.Company,
-	// 		"firstname":  user.Firstname,
-	// 		"lastname":   user.Lastname,
-	// 		"email":      user.Email,
-	// 		"role":       user.Role,
-	// 		"is_active":  user.IsActive,
-	// 	}
+		sugar.Infof("Token refreshed for user: ID=%d email=%s", user.ID, user.Email)
 
-	// 	tokenResponse := TokenResponse{
-	// 		AccessToken:  accessToken,
-	// 		RefreshToken: newRefreshToken,
-	// 		TokenType:    "Bearer",
-	// 		ExpiresIn:    accessExp,
-	// 		User:         userData,
-	// 	}
+		// Préparer les données utilisateur pour la réponse
+		userData := gin.H{
+			"id":        user.ID,
+			"company":   user.Company,
+			"firstname": user.Firstname,
+			"lastname":  user.Lastname,
+			"email":     user.Email,
+			"role":      user.Role,
+			"is_active": user.IsActive,
+		}
 
-	// 	c.JSON(http.StatusOK, RegisterResponse{
-	// 		Status:  "success",
-	// 		Message: "Tokens refreshed successfully",
-	// 		Data:    tokenResponse,
-	// 	})
-	// })
+		tokenResponse := TokenResponse{
+			AccessToken:  accessToken,
+			RefreshToken: newRefreshToken,
+			TokenType:    "Bearer",
+			ExpiresIn:    accessExp,
+			User:         userData,
+		}
 
-	// // Endpoint de validation de token (pour la gateway)
-	// sugar.Info("Setting up /validate endpoint...")
-	// r.POST("/validate", func(c *gin.Context) {
-	// 	// Extraire le token de l'en-tête Authorization
-	// 	authHeader := c.GetHeader("Authorization")
-	// 	if authHeader == "" {
-	// 		c.JSON(http.StatusUnauthorized, gin.H{
-	// 			"status":  "error",
-	// 			"message": "Authorization header required",
-	// 		})
-	// 		return
-	// 	}
+		sugar.Infof("New tokens generated for user ID=%d", user.ID)
 
-	// 	// Vérifier le format "Bearer <token>"
-	// 	parts := strings.SplitN(authHeader, " ", 2)
-	// 	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-	// 		c.JSON(http.StatusUnauthorized, gin.H{
-	// 			"status":  "error",
-	// 			"message": "Invalid authorization header format",
-	// 		})
-	// 		return
-	// 	}
+		c.JSON(http.StatusOK, RegisterResponse{
+			Status:  "success",
+			Message: "Tokens refreshed successfully",
+			Data:    tokenResponse,
+		})
+	})
 
-	// 	token := parts[1]
+	// Endpoint de validation de token (utilisé par la gateway)
+	sugar.Info("Setting up /validate endpoint...")
+	r.POST("/validate", func(c *gin.Context) {
+		// Extraire le token de l'en-tête Authorization
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  "error",
+				"message": "Authorization header required",
+			})
+			return
+		}
 
-	// 	// Valider le token
-	// 	claims, err := jwtService.ValidateAccessToken(token)
-	// 	if err != nil {
-	// 		c.JSON(http.StatusUnauthorized, gin.H{
-	// 			"status":  "error",
-	// 			"message": "Invalid token: " + err.Error(),
-	// 		})
-	// 		return
-	// 	}
+		// Vérifier le format "Bearer <token>"
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  "error",
+				"message": "Invalid authorization header format",
+			})
+			return
+		}
 
-	// 	// Vérifier si le token n'est pas sur la liste noire
-	// 	if tokenRepo.IsTokenBlacklisted(ctx, claims.ID) {
-	// 		c.JSON(http.StatusUnauthorized, gin.H{
-	// 			"status":  "error",
-	// 			"message": "Token has been revoked",
-	// 		})
-	// 		return
-	// 	}
+		token := parts[1]
 
-	// 	// Token valide
-	// 	c.JSON(http.StatusOK, gin.H{
-	// 		"status": "success",
-	// 		"data": gin.H{
-	// 			"user_id":  claims.UserID,
-	// 			"email":    claims.Email,
-	// 			"role":     claims.Role,
-	// 			"token_id": claims.TokenID,
-	// 		},
-	// 	})
-	// })
+		// Valider le token
+		claims, err := jwtService.ValidateAccessToken(token)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  "error",
+				"message": "Invalid token: " + err.Error(),
+			})
+			return
+		}
+
+		// Vérifier si le token est blacklisté (logout forcé, etc.)
+		if tokenRepo.IsTokenBlacklisted(ctx, claims.ID) {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  "error",
+				"message": "Token has been revoked",
+			})
+			return
+		}
+
+		// Token valide → renvoyer les infos utiles
+		c.JSON(http.StatusOK, gin.H{
+			"status": "success",
+			"data": gin.H{
+				"user_id":  claims.UserID,
+				"email":    claims.Email,
+				"role":     claims.Role,
+				"token_id": claims.ID, // JTI
+			},
+		})
+	})
 
 	// // Logout endpoint
 	// sugar.Info("Setting up /logout endpoint...")

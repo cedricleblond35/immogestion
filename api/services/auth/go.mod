@@ -43,13 +43,13 @@ require (
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
+	golang.org/x/xerrors v0.0.0-20220411194840-2f41105eb62f // indirect
 	google.golang.org/protobuf v1.34.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.0
-	github.com/google/uuid v1.6.0
 	github.com/redis/go-redis/v9 v9.14.0
 	go.uber.org/multierr v1.10.0 // indirect
 	gorm.io/driver/postgres v1.6.0

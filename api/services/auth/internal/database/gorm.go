@@ -111,18 +111,20 @@ func (g *GORM) Create(ctx context.Context, user *model.User) error {
 }
 
 // FindByEmail implémente FindByEmail (avec wrapping et logging).
-func (g *GORM) FindByEmail(ctx context.Context, email string, sugar *zap.SugaredLogger) (*model.User, error) {
+func (g *GORM) FindByEmail(ctx context.Context, email string) (*model.User, error) {
 	var user model.User
 	err := g.db.WithContext(ctx).Where("email = ?", email).First(&user).Error
 	if err != nil {
 		if stderrors.Is(err, gorm.ErrRecordNotFound) { // Assurez-vous que "errors" est le standard (alias si conflit)
-			sugar.Debugf("User not found for email: %s", email) // Debug car cas attendu (e.g., login)
+			g.sugar.Debugf("User not found for email: %s", email) // Debug car cas attendu (e.g., login)
 			return nil, errors.NewUserNotFound(email)           // Custom error
 		}
-		sugar.Errorf("Database error finding user by email %s: %v", email, err)
+		g.sugar.Errorf("Database error finding user by email %s: %v", email, err)
+
 		return nil, fmt.Errorf("database error finding user by email %s: %w", email, err)
 	}
-	sugar.Debugf("User found for email: %s (ID: %d)", email, user.ID)
+	
+	g.sugar.Debugf("User found for email: %s (ID: %d)", email, user.ID)
 	return &user, nil
 }
 

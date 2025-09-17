@@ -171,7 +171,16 @@ func main() {
 			return
 		}
 		defer resp.Body.Close()
+
 		// Read the response body from auth-service
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read response: " + err.Error()})
+			return
+		}
+
+		// Forward the response back to the client (Angular)
+		c.Data(resp.StatusCode, resp.Header.Get("Content-Type"), body)
 
 	})
 

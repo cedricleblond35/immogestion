@@ -2,7 +2,7 @@ package tokenstore
 
 import (
 	"context"
-	"strconv"
+	"fmt"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -21,26 +21,37 @@ func NewTokenStore(addr, password string) *TokenStore {
 }
 
 // Save a refresh token jti mapped to userID with TTL
-func (s *TokenStore) SaveRefreshToken(ctx context.Context, jti string, userID uint, ttl time.Duration) error {
+func (s *TokenStore) SaveRefreshToken(ctx context.Context, jti string, token string, ttl time.Duration) error {
 	key := "refresh:" + jti
-	return s.rdb.Set(ctx, key, userID, ttl).Err()
+	return s.rdb.Set(ctx, key, token, ttl).Err()
 }
 
-func (s *TokenStore) ValidateRefreshToken(ctx context.Context, jti string) (uint, error) {
+func (s *TokenStore) ValidateRefreshToken(ctx context.Context, jti, token string) error {
 	key := "refresh:" + jti
 	res, err := s.rdb.Get(ctx, key).Result()
 	if err != nil {
-		return 0, err
+		return err
 	}
-	// parse userID (stored as integer)
-	id64, err := strconv.ParseUint(res, 10, 64)
-	if err != nil {
-		return 0, err
+	if res != token {
+		return fmt.Errorf("refresh token mismatch")
 	}
-	return uint(id64), nil
+	return nil
 }
 
-func (s *TokenStore) DeleteRefreshToken(ctx context.Context, jti string) error {
-	key := "refresh:" + jti
-	return s.rdb.Del(ctx, key).Err()
+// Store un refresh token
+func (s *TokenStore) StoreRefreshToken(ctx context.Context, userID uint, jti string, token string, ttl time.Duration) error {
+    key := fmt.Sprintf("refresh_token:%d:%s", userID, jti)
+    return s.rdb.Set(ctx, key, token, ttl).Err()
+}
+
+// Récupère un refresh token
+func (s *TokenStore) GetRefreshToken(ctx context.Context, userID uint, jti string) (string, error) {
+    key := fmt.Sprintf("refresh_token:%d:%s", userID, jti)
+    return s.rdb.Get(ctx, key).Result()
+}
+
+// Supprime un refresh token
+func (s *TokenStore) DeleteRefreshToken(ctx context.Context, userID uint, jti string) error {
+    key := fmt.Sprintf("refresh_token:%d:%s", userID, jti)
+    return s.rdb.Del(ctx, key).Err()
 }
